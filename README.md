@@ -11,7 +11,7 @@ A machine learning application that classifies Ukrainian text comments into mult
 
 **No Python Installation Required:**
 
-- Download the portable `.exe` version from [Releases](https://github.com/yourusername/comments-classifier/releases)
+- Download the portable `.exe` version from [Releases](https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer/releases)
 - Extract and run `Comments_Classifier.exe` – that's it!
 - See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for details
 
@@ -42,8 +42,8 @@ A machine learning application that classifies Ukrainian text comments into mult
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/comments-classifier
-cd comments-classifier
+git clone https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer
+cd employee_comment_analyzer
 ```
 
 2. Create a virtual environment:
