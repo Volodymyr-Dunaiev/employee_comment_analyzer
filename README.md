@@ -27,13 +27,15 @@ A machine learning application that classifies Ukrainian text comments into mult
 - **Multi-label classification** of Ukrainian text comments
 - **Training interface** for fine-tuning models with your own data
 - **User-friendly Streamlit interface** with separate tabs for classification and training
-- **Batch processing** for large files
+- **Batch file processing** - Upload and classify multiple files at once with parallel processing
 - **Real-time progress tracking** during classification and training
 - **Configurable categories** (currently 13 Ukrainian workplace categories)
 - **Comprehensive error handling** and logging
 - **Model metrics tracking** (F1, precision, recall)
 - **⚡ High-performance lazy-loading** (87% faster startup)
 - **Multi-column label support** for flexible training data formats
+- **Automatic memory management** - Auto-tunes batch size based on available RAM
+- **Model versioning** - Auto-backup before overwriting trained models
 
 ## Installation
 
@@ -200,12 +202,36 @@ The app will open in your browser with two tabs:
 
 ### Tab 1: Classification
 
-Use this tab to classify comments with an existing trained model:
+Use this tab to classify comments with an existing trained model.
 
-1. Upload an Excel file containing comments
-2. Click "Run Classification"
-3. Monitor progress
-4. Download the results
+#### Single File Mode
+
+1. Select "Single File" processing mode
+2. Upload an Excel file containing comments
+3. Click "Run Classification"
+4. Monitor progress
+5. Download the results
+
+#### Batch Processing Mode
+
+Process multiple files at once for improved efficiency:
+
+1. Select "Batch Processing" mode
+2. Upload multiple Excel/CSV files simultaneously
+3. Configure options:
+   - **Concurrent files**: Number of files to process in parallel (1-5)
+   - **Create combined output**: Merge all results into one file
+4. Click "Process Batch"
+5. View processing summary (success rate, total comments, time)
+6. Download individual results or combined output
+
+**Batch Processing Benefits:**
+
+- Process 3-5 files concurrently (configurable)
+- Automatic file validation before processing
+- Detailed error reporting per file
+- Combined output option with source file tracking
+- Significant time savings for large datasets
 
 ### Tab 2: Training
 

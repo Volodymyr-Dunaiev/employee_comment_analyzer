@@ -1,9 +1,13 @@
 # """Streamlit user interface for the comment classifier."""
 import os
 from io import BytesIO
-from typing import Optional, BinaryIO
+from typing import Optional, BinaryIO, List
+from pathlib import Path
+import tempfile
 import streamlit as st
 from src.core.pipeline import run_inference
+from src.core.batch_processor import BatchProcessor
+from src.core.classifier import CommentClassifier
 from src.core.errors import PipelineError
 from src.utils.logger import get_logger
 from src.utils.config import load_config, ConfigError
@@ -333,51 +337,211 @@ def show_inference_tab(config):
 
         st.markdown("""
         ### Instructions
+        
+        **Single File:**
         1. Upload an Excel file containing comments
         2. Click 'Run Classification' to process
         3. Download the results
+        
+        **Batch Processing:**
+        1. Upload multiple Excel/CSV files at once
+        2. Click 'Process Batch' to classify all files
+        3. Download individual results or combined output
         """)
+    
+    # Processing mode selection
+    processing_mode = st.radio(
+        "Processing Mode",
+        ["Single File", "Batch Processing"],
+        horizontal=True,
+        help="Choose single file for one file or batch for multiple files at once"
+    )
+    
+    if processing_mode == "Single File":
+        # Single file upload with validation
+        input_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
-    # File upload with validation
-    input_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
+        if input_file and validate_file(input_file):
+            # In-memory file handling
+            output_file = BytesIO()
 
-    if input_file and validate_file(input_file):
-        # In-memory file handling
-        output_file = BytesIO()
+            # Progress tracking
+            progress_text = st.empty()
+            progress_bar = st.progress(0)
 
-        # Progress tracking
-        progress_text = st.empty()
-        progress_bar = st.progress(0)
+            def update_progress(current: int, total: int) -> None:
+                percent = int((current / total) * 100)
+                progress_bar.progress(percent)
+                progress_text.text(f"Processing... {percent}%")
 
-        def update_progress(current: int, total: int) -> None:
-            percent = int((current / total) * 100)
-            progress_bar.progress(percent)
-            progress_text.text(f"Processing... {percent}%")
+            # Process button with error handling
+            if st.button("Run Classification", type="primary"):
+                try:
+                    with st.spinner("Processing..."):
+                        run_inference(
+                            input_file,
+                            output_file,
+                            text_column,
+                            categories,
+                            update_progress
+                        )
 
-        # Process button with error handling
-        if st.button("Run Classification", type="primary"):
-            try:
-                with st.spinner("Processing..."):
-                    run_inference(
-                        input_file,
-                        output_file,
-                        text_column,
-                        categories,
-                        update_progress
+                    st.success("Classification completed successfully!")
+
+                    # Offer download
+                    st.download_button(
+                        "Download Results",
+                        data=output_file.getvalue(),
+                        file_name="classified_comments.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
-                st.success("Classification completed successfully!")
-
-                # Offer download
-                st.download_button(
-                    "Download Results",
-                    data=output_file.getvalue(),
-                    file_name="classified_comments.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                except PipelineError as e:
+                    display_error(f"Processing error: {str(e)}")
+    
+    else:  # Batch Processing
+        st.subheader("📦 Batch File Processing")
+        
+        # Batch upload
+        uploaded_files = st.file_uploader(
+            "Upload multiple files",
+            type=["xlsx", "xls", "csv"],
+            accept_multiple_files=True,
+            help="Select multiple Excel or CSV files to process at once"
+        )
+        
+        if uploaded_files:
+            st.info(f"📁 {len(uploaded_files)} file(s) selected")
+            
+            # Show file list
+            with st.expander("View uploaded files"):
+                for i, file in enumerate(uploaded_files, 1):
+                    file.seek(0, os.SEEK_END)
+                    size_mb = file.tell() / (1024 * 1024)
+                    file.seek(0)
+                    st.write(f"{i}. {file.name} ({size_mb:.2f} MB)")
+            
+            # Batch processing options
+            col1, col2 = st.columns(2)
+            with col1:
+                max_workers = st.number_input(
+                    "Concurrent files",
+                    min_value=1,
+                    max_value=5,
+                    value=3,
+                    help="Number of files to process simultaneously (higher = faster but more memory)"
                 )
-
-            except PipelineError as e:
-                display_error(f"Processing error: {str(e)}")
+            with col2:
+                combine_results = st.checkbox(
+                    "Create combined output",
+                    value=True,
+                    help="Generate a single file with all results combined"
+                )
+            
+            # Process button
+            if st.button("Process Batch", type="primary"):
+                try:
+                    # Create temporary directory for processing
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        temp_path = Path(temp_dir)
+                        
+                        # Save uploaded files temporarily
+                        file_paths = []
+                        for uploaded_file in uploaded_files:
+                            file_path = temp_path / uploaded_file.name
+                            with open(file_path, 'wb') as f:
+                                f.write(uploaded_file.getvalue())
+                            file_paths.append(file_path)
+                        
+                        # Initialize batch processor
+                        config = load_config()
+                        classifier = CommentClassifier(config)
+                        processor = BatchProcessor(
+                            classifier,
+                            max_workers=max_workers,
+                            text_column=text_column
+                        )
+                        
+                        # Validate files
+                        with st.spinner("Validating files..."):
+                            valid_files, errors = processor.validate_files(file_paths)
+                        
+                        if errors:
+                            st.warning("⚠️ Some files have issues:")
+                            for error in errors:
+                                st.write(f"- {error}")
+                        
+                        if not valid_files:
+                            st.error("No valid files to process!")
+                        else:
+                            # Process files
+                            progress_container = st.empty()
+                            status_text = st.empty()
+                            
+                            with st.spinner(f"Processing {len(valid_files)} file(s)..."):
+                                result = processor.process_files(
+                                    valid_files,
+                                    output_dir=temp_path / "results",
+                                    output_prefix="classified_",
+                                    combine_results=combine_results
+                                )
+                            
+                            # Display results summary
+                            st.success("✅ Batch processing complete!")
+                            
+                            summary = result.get_summary()
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.metric("Total Files", summary['total_files'])
+                            with col2:
+                                st.metric("Successful", summary['successful_files'])
+                            with col3:
+                                st.metric("Failed", summary['failed_files'])
+                            with col4:
+                                st.metric("Comments", summary['total_comments'])
+                            
+                            st.write(f"⏱️ Processing time: {summary['processing_time']}")
+                            st.write(f"📊 Success rate: {summary['success_rate']}")
+                            
+                            # Show failures if any
+                            if result.failed_files:
+                                with st.expander("❌ Failed Files"):
+                                    for filename, error in result.failed_files:
+                                        st.write(f"**{filename}:** {error}")
+                            
+                            # Provide downloads
+                            st.subheader("📥 Download Results")
+                            
+                            # Individual file downloads
+                            if result.successful_files:
+                                st.write("**Individual Results:**")
+                                for filename in result.successful_files:
+                                    output_path = temp_path / "results" / f"classified_{filename}"
+                                    if output_path.exists():
+                                        with open(output_path, 'rb') as f:
+                                            st.download_button(
+                                                f"📄 {filename}",
+                                                data=f.read(),
+                                                file_name=f"classified_{filename}",
+                                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                                key=f"download_{filename}"
+                                            )
+                            
+                            # Combined output download
+                            if combine_results and hasattr(result, 'combined_output_path'):
+                                st.write("**Combined Output:**")
+                                with open(result.combined_output_path, 'rb') as f:
+                                    st.download_button(
+                                        "📦 Download All (Combined)",
+                                        data=f.read(),
+                                        file_name=result.combined_output_path.name,
+                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                        key="download_combined"
+                                    )
+                
+                except Exception as e:
+                    display_error(f"Batch processing error: {str(e)}")
+                    logger.exception("Batch processing failed")
             except Exception as e:
                 display_error("An unexpected error occurred")
 

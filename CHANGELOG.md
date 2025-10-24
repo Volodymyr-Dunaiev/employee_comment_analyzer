@@ -4,13 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Batch File Processing**: New module for processing multiple files concurrently
+  - `src/core/batch_processor.py`: Core batch processing logic with parallel execution
+  - Support for 1-5 concurrent file processing (configurable)
+  - Automatic file validation before processing
+  - Per-file error handling and reporting
+  - Combined output option to merge all results into single file
+  - Processing summary with success rate, total comments, and timing
+  - Comprehensive test suite (`tests/test_batch_processor.py`) with 20+ test cases
+- **Batch UI in Streamlit**: Enhanced classification tab with dual processing modes
+  - Toggle between "Single File" and "Batch Processing" modes
+  - Multi-file upload support (Excel and CSV)
+  - Configurable concurrent workers (max_workers parameter)
+  - Optional combined output file generation
+  - Real-time processing status and progress tracking
+  - Individual and combined download buttons
+  - File validation with detailed error messages
+
+### Changed
+
+- **README.md**: Updated features list and usage documentation for batch processing
+- **UI**: Classification tab now has mode selector and batch processing interface
+
+## [2.1.1] - 2025-10-24
+
 ### Fixed
+
 - **Packaging Script**: Updated `scripts/package_distribution.bat` to support `--onedir` builds
   - Now correctly copies `Comments_Classifier/` and `Train_Model/` folders instead of single .exe files
   - Updated launcher scripts to reference folder structure
   - Updated README.txt with correct paths and folder structure
 
 ### Changed
+
 - **Security Contact**: Updated `SECURITY.md` with maintainer email for vulnerability reporting
 - **Build Artifacts**: Added `.spec` files and portable distribution to `.gitignore`
 
