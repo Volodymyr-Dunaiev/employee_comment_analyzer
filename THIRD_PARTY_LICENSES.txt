@@ -1,0 +1,49 @@
+Third-Party Software Licenses
+=====================================
+
+This application uses the following open-source libraries:
+
+1. PyTorch (BSD-3-Clause License)
+   Copyright (c) 2016-2025 Facebook, Inc. and its affiliates
+   https://github.com/pytorch/pytorch
+
+2. Transformers (Apache License 2.0)
+   Copyright 2018- The Hugging Face team
+   https://github.com/huggingface/transformers
+
+3. Streamlit (Apache License 2.0)
+   Copyright 2018-2025 Snowflake Inc.
+   https://github.com/streamlit/streamlit
+
+4. scikit-learn (BSD-3-Clause License)
+   Copyright (c) 2007-2025 The scikit-learn developers
+   https://github.com/scikit-learn/scikit-learn
+
+5. pandas (BSD-3-Clause License)
+   Copyright (c) 2008-2025, AQR Capital Management, LLC
+   https://github.com/pandas-dev/pandas
+
+6. openpyxl (MIT License)
+   Copyright (c) 2010 openpyxl authors
+   https://openpyxl.readthedocs.io/
+
+7. PyYAML (MIT License)
+   Copyright (c) 2017-2025 Ingy döt Net
+   https://github.com/yaml/pyyaml
+
+8. psutil (BSD-3-Clause License)
+   Copyright (c) 2009, Jay Loden, Dave Daeschler, Giampaolo Rodola
+   https://github.com/giampaolo/psutil
+
+Full license texts available at respective project repositories.
+
+=====================================
+Your Application License
+
+This application (Comments Classifier) is proprietary software.
+All rights reserved.
+
+Or, if you want to open source:
+
+This application is licensed under the MIT License.
+See LICENSE file for details.

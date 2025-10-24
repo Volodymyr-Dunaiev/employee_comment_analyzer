@@ -1,0 +1,40 @@
+# Model Configuration
+model:
+  path: "xlm-roberta-base" # Hugging Face model ID or path to trained model
+  batch_size: 8 # Batch size for inference
+  device: "cpu" # "cpu" or "cuda" (GPU)
+
+# Data Configuration
+data:
+  text_column: "comment" # Name of the column containing text in input files
+  chunk_size: 1000 # Number of rows to process at once
+  input_validation:
+    max_length: 5000 # Maximum text length in characters
+    required_columns: ["comment"] # Required columns in input file
+
+# Classification Categories (Ukrainian workplace feedback)
+categories:
+  - "Колектив" # Team/Colleagues
+  - "Умови праці" # Working Conditions
+  - "Робочі процеси та практики" # Work Processes and Practices
+  - "Визнання співробітників та винагорода" # Employee Recognition and Rewards
+  - "Імідж компанії" # Company Image
+  - "Навчання та розвиток" # Training and Development
+  - "Ефективність управління" # Management Effectiveness
+  - "Зміст роботи" # Job Content
+  - "Добробут співробітників" # Employee Well-being
+  - "Взаємодія та комунікація" # Interaction and Communication
+  - "Баланс робота-особисте життя" # Work-Life Balance
+  - "Внутрішня мотивація" # Internal Motivation
+  - "Інше" # Other
+
+# Logging Configuration
+logging:
+  level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "app.log" # Log file path
+
+# Security Settings
+security:
+  allowed_extensions: ["xlsx", "xls", "csv"] # Allowed file types for upload
+  max_file_size_mb: 50 # Maximum file size in MB
