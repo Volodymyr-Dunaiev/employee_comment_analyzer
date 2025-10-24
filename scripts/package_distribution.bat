@@ -9,14 +9,14 @@ echo ========================================
 echo.
 
 REM Check if executables exist
-if not exist "dist\Comments_Classifier.exe" (
+if not exist "dist\Comments_Classifier\Comments_Classifier.exe" (
     echo ERROR: Comments_Classifier.exe not found!
     echo Please run scripts\build_exe.bat first
     pause
     exit /b 1
 )
 
-if not exist "dist\Train_Model.exe" (
+if not exist "dist\Train_Model\Train_Model.exe" (
     echo ERROR: Train_Model.exe not found!
     echo Please run scripts\build_exe.bat first
     pause
@@ -28,9 +28,9 @@ set DIST_NAME=Comments_Classifier_Portable
 if exist "%DIST_NAME%" rmdir /s /q "%DIST_NAME%"
 mkdir "%DIST_NAME%"
 
-echo Copying executables...
-copy "dist\Comments_Classifier.exe" "%DIST_NAME%\"
-copy "dist\Train_Model.exe" "%DIST_NAME%\"
+echo Copying executables and dependencies...
+xcopy /E /I /Y "dist\Comments_Classifier" "%DIST_NAME%\Comments_Classifier"
+xcopy /E /I /Y "dist\Train_Model" "%DIST_NAME%\Train_Model"
 
 echo Copying configuration...
 copy config.yaml "%DIST_NAME%\"
@@ -54,15 +54,16 @@ echo Ukrainian Comments Classifier - Portable Edition
 echo ================================================================
 echo.
 echo QUICK START:
-echo   1. Double-click "Comments_Classifier.exe" to start the app
-echo   2. App will open in your browser at http://localhost:8501
-echo   3. Upload Excel file with comments and classify them
+echo   1. Double-click "START_APP.bat" to start the application
+echo   2. OR run Comments_Classifier\Comments_Classifier.exe directly
+echo   3. App will open in your browser at http://localhost:8501
+echo   4. Upload Excel file with comments and classify them
 echo.
 echo TRAINING A MODEL:
 echo   1. Prepare training data ^(Excel file with 'text' and 'labels' columns^)
 echo   2. Save it in the 'data' folder
-echo   3. Open Command Prompt in this folder
-echo   4. Run: Train_Model.exe --data data\your_file.xlsx --epochs 3
+echo   3. Double-click "TRAIN_MODEL.bat" OR
+echo   4. Open Command Prompt and run: Train_Model\Train_Model.exe --data data\your_file.xlsx --epochs 3
 echo   5. After training, update config.yaml to point to your model
 echo.
 echo SYSTEM REQUIREMENTS:
@@ -71,8 +72,10 @@ echo   - 4GB RAM minimum ^(8GB recommended^)
 echo   - No Python installation needed!
 echo.
 echo FOLDER STRUCTURE:
-echo   Comments_Classifier.exe  - Main application
-echo   Train_Model.exe          - Training utility
+echo   START_APP.bat            - Quick launcher for main app
+echo   TRAIN_MODEL.bat          - Training wizard
+echo   Comments_Classifier\     - Main application folder
+echo   Train_Model\             - Training utility folder
 echo   config.yaml              - Application settings
 echo   data\                    - Place training files here
 echo   model\                   - Trained models stored here
@@ -87,13 +90,13 @@ echo     * OR separate columns: 'Category 1', 'Category 2', etc.
 echo.
 echo EXAMPLES:
 echo   Train new model:
-echo     Train_Model.exe --data data\train.xlsx --epochs 3
+echo     Train_Model\Train_Model.exe --data data\train.xlsx --epochs 3
 echo.
 echo   Quick training ^(1 epoch^):
-echo     Train_Model.exe --data data\train.xlsx --epochs 1 --batch_size 4
+echo     Train_Model\Train_Model.exe --data data\train.xlsx --epochs 1 --batch_size 4
 echo.
 echo   Refine existing model:
-echo     Train_Model.exe --data data\more_data.xlsx --model_name_or_path model\ukr_multilabel --epochs 2
+echo     Train_Model\Train_Model.exe --data data\more_data.xlsx --model_name_or_path model\ukr_multilabel --epochs 2
 echo.
 echo TROUBLESHOOTING:
 echo   - Port in use: Close other apps using port 8501
@@ -123,7 +126,7 @@ REM Create quick launch scripts
 echo Creating quick launch scripts...
 (
 echo @echo off
-echo start /B Comments_Classifier.exe
+echo start /B Comments_Classifier\Comments_Classifier.exe
 echo echo Application started! Opening in browser...
 echo timeout /t 3 /nobreak ^>nul
 echo start http://localhost:8501
@@ -139,7 +142,7 @@ echo set /p DATAFILE="Enter training file path (e.g., data\train.xlsx): "
 echo set /p EPOCHS="Number of epochs (default 3): "
 echo if "%%EPOCHS%%"=="" set EPOCHS=3
 echo.
-echo Train_Model.exe --data "%%DATAFILE%%" --epochs %%EPOCHS%%
+echo Train_Model\Train_Model.exe --data "%%DATAFILE%%" --epochs %%EPOCHS%%
 echo pause
 ) > "%DIST_NAME%\TRAIN_MODEL.bat"
 

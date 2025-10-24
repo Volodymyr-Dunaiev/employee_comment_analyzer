@@ -21,6 +21,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# PyInstaller
+*.spec
+Comments_Classifier_Portable/
+Comments_Classifier_Portable.zip
+
 # Logs
 *.log
 logs/

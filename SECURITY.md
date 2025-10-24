@@ -136,7 +136,7 @@ The application implements multiple validation layers:
 
 ## Vulnerability Reporting
 
-To report a security vulnerability, please email: [your.security@email.com]
+To report a security vulnerability, please email: **volmyrdunayev@gmail.com**
 
 Include:
 

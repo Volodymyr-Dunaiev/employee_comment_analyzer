@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Packaging Script**: Updated `scripts/package_distribution.bat` to support `--onedir` builds
+  - Now correctly copies `Comments_Classifier/` and `Train_Model/` folders instead of single .exe files
+  - Updated launcher scripts to reference folder structure
+  - Updated README.txt with correct paths and folder structure
+
+### Changed
+- **Security Contact**: Updated `SECURITY.md` with maintainer email for vulnerability reporting
+- **Build Artifacts**: Added `.spec` files and portable distribution to `.gitignore`
+
 ## [2.1.0] - 2025-10-24
 
 ### Critical Production Fixes
