@@ -1,6 +1,6 @@
 # Ukrainian Comments Classifier
 
-![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![Performance](https://img.shields.io/badge/startup-87%25_faster-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
