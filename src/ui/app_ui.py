@@ -542,8 +542,6 @@ def show_inference_tab(config):
                 except Exception as e:
                     display_error(f"Batch processing error: {str(e)}")
                     logger.exception("Batch processing failed")
-            except Exception as e:
-                display_error("An unexpected error occurred")
 
 def main():
     # Main application entry point.
