@@ -94,6 +94,7 @@ pythonpath = "."
 markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "slow: marks tests as slow-running tests",
 ]
 
 [tool.mypy]

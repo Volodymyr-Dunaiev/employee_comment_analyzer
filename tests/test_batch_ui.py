@@ -117,7 +117,7 @@ class TestBatchProcessingUI:
         result = BatchProcessingResult()
         df = pd.DataFrame({'text': ['test']})
         
-        result.add_success('file1.xlsx', df, 5)
+        result.add_success('file1.xlsx', df, 5, skipped_count=0)
         result.add_failure('file2.xlsx', 'Error message')
         result.processing_time = 12.34
         
@@ -128,7 +128,9 @@ class TestBatchProcessingUI:
         assert 'successful_files' in summary
         assert 'failed_files' in summary
         assert 'success_rate' in summary
-        assert 'total_comments' in summary
+        assert 'total_rows' in summary  # Updated from total_comments
+        assert 'processed_comments' in summary  # New metric
+        assert 'skipped_comments' in summary  # New metric
         assert 'processing_time' in summary
         
         # Verify metric types
@@ -136,7 +138,9 @@ class TestBatchProcessingUI:
         assert isinstance(summary['successful_files'], int)
         assert isinstance(summary['failed_files'], int)
         assert isinstance(summary['success_rate'], str)
-        assert isinstance(summary['total_comments'], int)
+        assert isinstance(summary['total_rows'], int)
+        assert isinstance(summary['processed_comments'], int)
+        assert isinstance(summary['skipped_comments'], int)
         assert isinstance(summary['processing_time'], str)
     
     def test_error_list_display(self):
@@ -235,12 +239,13 @@ class TestBatchUIWorkflow:
         """Test complete batch processing workflow."""
         processor = BatchProcessor(mock_classifier, max_workers=2)
         
-        # Validate files
-        valid_files, errors = processor.validate_files(sample_data_files)
+        # Validate files (now returns 3 values including cached_data)
+        valid_files, errors, cached_data = processor.validate_files(sample_data_files)
         assert len(valid_files) == 2
         assert len(errors) == 0
+        assert len(cached_data) == 2
         
-        # Process files
+        # Process files with cached data
         result = processor.process_files(
             valid_files,
             output_dir=tmp_path / "output",
@@ -351,8 +356,9 @@ class TestBatchUIEdgeCases:
         result.add_failure('file1.xlsx', 'Error')
         result.add_failure('file2.xlsx', 'Error')
         
-        # Should not have combined output
-        assert not hasattr(result, 'combined_output_path')
+        # Should have combined_output_path attribute (initialized to None)
+        assert hasattr(result, 'combined_output_path')
+        assert result.combined_output_path is None  # Should be None since no files succeeded
         assert len(result.successful_files) == 0
 
 

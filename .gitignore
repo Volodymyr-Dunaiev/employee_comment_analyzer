@@ -77,3 +77,10 @@ tmp/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Work-in-progress documentation (implementation planning)
+IMPLEMENTATION_PLAN.md
+IMPROVEMENTS_CHECKLIST.md
+SESSION_SUMMARY.md
+P0_IMPLEMENTATION_SUMMARY.md
+P0_QUICK_REFERENCE.md

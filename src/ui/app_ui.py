@@ -402,6 +402,12 @@ def show_inference_tab(config):
     else:  # Batch Processing
         st.subheader("📦 Batch File Processing")
         
+        # Initialize session state for batch settings
+        if 'batch_combine_results' not in st.session_state:
+            st.session_state.batch_combine_results = True
+        if 'batch_output_prefix' not in st.session_state:
+            st.session_state.batch_output_prefix = "classified_"
+        
         # Batch upload
         uploaded_files = st.file_uploader(
             "Upload multiple files",
@@ -424,22 +430,154 @@ def show_inference_tab(config):
             # Batch processing options
             col1, col2 = st.columns(2)
             with col1:
-                max_workers = st.number_input(
-                    "Concurrent files",
-                    min_value=1,
-                    max_value=5,
-                    value=3,
-                    help="Number of files to process simultaneously (higher = faster but more memory)"
-                )
+                # Check if using GPU - must use max_workers=1 for CUDA
+                device = config['model'].get('device', 'cpu')
+                is_gpu = device.lower() in ['cuda', 'gpu']
+                
+                # Initialize session state for max_workers if not set
+                if 'batch_max_workers' not in st.session_state:
+                    st.session_state.batch_max_workers = 1
+                if 'batch_use_multiprocessing' not in st.session_state:
+                    st.session_state.batch_use_multiprocessing = False
+                
+                if is_gpu:
+                    max_workers = 1
+                    use_multiprocessing = False
+                    st.info("🔒 **GPU/CUDA Mode**")
+                    st.caption("Concurrent processing disabled for thread-safety. PyTorch models cannot safely run concurrent inference on GPU.")
+                    # Display disabled input to show the value
+                    st.number_input(
+                        "Concurrent files",
+                        min_value=1,
+                        max_value=1,
+                        value=1,
+                        disabled=True,
+                        help="GPU mode requires single-threaded processing"
+                    )
+                else:
+                    # Multiprocessing toggle
+                    use_multiprocessing = st.checkbox(
+                        "Use multiprocessing (true parallelism)",
+                        value=st.session_state.batch_use_multiprocessing,
+                        help="Creates separate processes with isolated models for true parallel processing. Higher memory usage but better CPU utilization."
+                    )
+                    st.session_state.batch_use_multiprocessing = use_multiprocessing
+                    
+                    if use_multiprocessing:
+                        st.caption("✨ **Multiprocessing Mode** — True parallel processing with separate model instances")
+                        max_workers = st.number_input(
+                            "Concurrent processes",
+                            min_value=1,
+                            max_value=8,
+                            value=st.session_state.batch_max_workers,
+                            key='max_workers_input',
+                            help="Number of processes to run in parallel. Each process loads its own model instance."
+                        )
+                    else:
+                        st.caption("ℹ️ **Threading Mode (Recommended for small batches)** — PyTorch inference stays single-threaded (only I/O is parallelized)")
+                        max_workers = st.number_input(
+                            "Concurrent files",
+                            min_value=1,
+                            max_value=5,
+                            value=st.session_state.batch_max_workers,
+                            key='max_workers_input',
+                            help="Number of files to process simultaneously. Values >1 only speed up file reading/writing, not classification."
+                        )
+                    # Update session state with user choice
+                    st.session_state.batch_max_workers = max_workers
             with col2:
                 combine_results = st.checkbox(
                     "Create combined output",
-                    value=True,
+                    value=st.session_state.batch_combine_results,
                     help="Generate a single file with all results combined"
                 )
+                st.session_state.batch_combine_results = combine_results
+                
+                output_prefix = st.text_input(
+                    "Output filename prefix",
+                    value=st.session_state.batch_output_prefix,
+                    help="Prefix to add to output filenames"
+                )
+                st.session_state.batch_output_prefix = output_prefix
+            
+            # Action buttons
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                dry_run_clicked = st.button("🔍 Dry Run (Validate Only)", help="Check files without processing")
+            with col_btn2:
+                process_clicked = st.button("Process Batch", type="primary")
+            
+            # Dry run validation
+            if dry_run_clicked:
+                try:
+                    # Create temporary directory
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        temp_path = Path(temp_dir)
+                        
+                        # Save uploaded files temporarily
+                        file_paths = []
+                        for uploaded_file in uploaded_files:
+                            file_path = temp_path / uploaded_file.name
+                            with open(file_path, 'wb') as f:
+                                f.write(uploaded_file.getvalue())
+                            file_paths.append(file_path)
+                        
+                        # Initialize batch processor (no classifier needed for dry-run)
+                        config = load_config()
+                        classifier = CommentClassifier(config)
+                        processor = BatchProcessor(
+                            classifier,
+                            max_workers=1,
+                            text_column=text_column
+                        )
+                        
+                        # Run dry-run validation
+                        with st.spinner("Validating files..."):
+                            validation_results = processor.dry_run_validation(file_paths)
+                        
+                        # Display results
+                        st.subheader("📋 Validation Report")
+                        
+                        for filename, report in validation_results.items():
+                            status_icon = {"valid": "✅", "warning": "⚠️", "error": "❌"}[report['status']]
+                            
+                            with st.expander(f"{status_icon} {filename}"):
+                                if report['error']:
+                                    st.error(f"Error: {report['error']}")
+                                else:
+                                    col1, col2, col3 = st.columns(3)
+                                    with col1:
+                                        st.metric("Total Rows", report['total_rows'])
+                                        st.metric("Empty Rate", f"{report['empty_rate']*100:.1f}%")
+                                    with col2:
+                                        st.metric("Avg Text Length", report['avg_text_length'])
+                                        st.metric("Max Text Length", report['max_text_length'])
+                                    with col3:
+                                        st.metric("Encoding", report['encoding'])
+                                        st.metric("Est. Memory", f"{report['estimated_memory_mb']} MB")
+                                    
+                                    st.write("**Issues:**")
+                                    for issue in report['issues']:
+                                        st.write(f"- {issue}")
+                        
+                        # Summary
+                        valid_count = sum(1 for r in validation_results.values() if r['status'] == 'valid')
+                        warning_count = sum(1 for r in validation_results.values() if r['status'] == 'warning')
+                        error_count = sum(1 for r in validation_results.values() if r['status'] == 'error')
+                        
+                        if error_count > 0:
+                            st.error(f"❌ {error_count} file(s) have errors")
+                        elif warning_count > 0:
+                            st.warning(f"⚠️ {warning_count} file(s) have warnings, {valid_count} are ready")
+                        else:
+                            st.success(f"✅ All {valid_count} files are ready for processing")
+                        
+                except Exception as e:
+                    st.error(f"Validation failed: {str(e)}")
+                    logger.error(f"Dry-run validation error: {str(e)}", exc_info=True)
             
             # Process button
-            if st.button("Process Batch", type="primary"):
+            if process_clicked:
                 try:
                     # Create temporary directory for processing
                     with tempfile.TemporaryDirectory() as temp_dir:
@@ -459,12 +597,13 @@ def show_inference_tab(config):
                         processor = BatchProcessor(
                             classifier,
                             max_workers=max_workers,
-                            text_column=text_column
+                            text_column=text_column,
+                            use_multiprocessing=use_multiprocessing
                         )
                         
-                        # Validate files
+                        # Validate files and cache loaded data
                         with st.spinner("Validating files..."):
-                            valid_files, errors = processor.validate_files(file_paths)
+                            valid_files, errors, cached_data = processor.validate_files(file_paths)
                         
                         if errors:
                             st.warning("⚠️ Some files have issues:")
@@ -474,7 +613,7 @@ def show_inference_tab(config):
                         if not valid_files:
                             st.error("No valid files to process!")
                         else:
-                            # Process files
+                            # Process files with cached data (avoids re-reading files)
                             progress_container = st.empty()
                             status_text = st.empty()
                             
@@ -482,8 +621,9 @@ def show_inference_tab(config):
                                 result = processor.process_files(
                                     valid_files,
                                     output_dir=temp_path / "results",
-                                    output_prefix="classified_",
-                                    combine_results=combine_results
+                                    output_prefix=output_prefix,
+                                    combine_results=combine_results,
+                                    validated_data=cached_data
                                 )
                             
                             # Display results summary
@@ -498,10 +638,36 @@ def show_inference_tab(config):
                             with col3:
                                 st.metric("Failed", summary['failed_files'])
                             with col4:
-                                st.metric("Comments", summary['total_comments'])
+                                st.metric("Rows Processed", summary['processed_comments'])
                             
                             st.write(f"⏱️ Processing time: {summary['processing_time']}")
                             st.write(f"📊 Success rate: {summary['success_rate']}")
+                            
+                            # Show warning if any comments were skipped with per-file breakdown
+                            if summary['skipped_comments'] > 0:
+                                total_rows = summary['total_rows']
+                                skip_pct = (summary['skipped_comments'] / total_rows * 100) if total_rows > 0 else 0
+                                
+                                warning_msg = (
+                                    f"⚠️ **{summary['skipped_comments']} empty or invalid comments were skipped "
+                                    f"({skip_pct:.1f}% of {total_rows} total rows).** "
+                                    "These rows have `is_skipped=True` and zero probabilities."
+                                )
+                                
+                                # Add per-file breakdown
+                                files_with_skips = {
+                                    fname: count for fname, count in result.skip_counts_by_file.items() if count > 0
+                                }
+                                if files_with_skips:
+                                    warning_msg += "\n\n**Per-file breakdown:**\n"
+                                    for fname, count in sorted(files_with_skips.items(), key=lambda x: x[1], reverse=True):
+                                        # Get total rows for this file
+                                        file_df = result.results_by_file.get(fname)
+                                        file_total = len(file_df) if file_df is not None else count
+                                        file_pct = (count / file_total * 100) if file_total > 0 else 0
+                                        warning_msg += f"\n- `{fname}`: {count} skipped ({file_pct:.1f}%)"
+                                
+                                st.warning(warning_msg)
                             
                             # Show failures if any
                             if result.failed_files:
@@ -528,7 +694,7 @@ def show_inference_tab(config):
                                             )
                             
                             # Combined output download
-                            if combine_results and hasattr(result, 'combined_output_path'):
+                            if combine_results and result.combined_output_path is not None:
                                 st.write("**Combined Output:**")
                                 with open(result.combined_output_path, 'rb') as f:
                                     st.download_button(

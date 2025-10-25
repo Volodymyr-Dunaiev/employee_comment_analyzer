@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.1] - 2025-10-25
+
+### Changed
+
+- **Skip Reason Enhancement**: Removed text length limitations
+  - Removed `too_long` from SkipReason enum
+  - Removed `max_text_length` parameter from `classify_batch()` method
+  - All text lengths are now processed without being skipped
+  - Very long texts are automatically truncated by tokenizer to model's max token length
+  - Updated all documentation to reflect removal of length restrictions
+
+### Benefits
+
+- No arbitrary character limits on input texts
+- Improved handling of long-form feedback and comments
+- Simpler API - one less parameter to configure
+- More texts successfully processed
+
 ## [2.2.0] - 2025-10-24
 
 ### Added

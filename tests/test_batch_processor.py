@@ -80,12 +80,17 @@ def mock_classifier(mocker):
     """Create mock classifier for testing."""
     classifier = mocker.Mock(spec=CommentClassifier)
     
-    # Mock classify_batch to return dummy predictions
+    # Mock classify_batch to return dummy predictions with metadata and skip_reason
     def mock_classify(texts):
         return {
             'Category1': [0.8] * len(texts),
             'Category2': [0.3] * len(texts),
-            'Category3': [0.5] * len(texts)
+            'Category3': [0.5] * len(texts),
+            'skip_reason': ['none'] * len(texts),  # All processed successfully
+            '_metadata': {
+                'skipped_indices': [],
+                'skip_reason_counts': {'none': len(texts)}
+            }
         }
     
     classifier.classify_batch = mock_classify
@@ -101,7 +106,9 @@ class TestBatchProcessingResult:
         assert result.successful_files == []
         assert result.failed_files == []
         assert result.total_comments_processed == 0
+        assert result.total_skipped_comments == 0
         assert result.processing_time == 0.0
+        assert result.combined_output_path is None  # Verify initialization
     
     def test_add_success(self):
         """Test adding successful file result."""
@@ -154,7 +161,7 @@ class TestBatchProcessingResult:
         result = BatchProcessingResult()
         df = pd.DataFrame({'text': ['test']})
         
-        result.add_success('file1.xlsx', df, 5)
+        result.add_success('file1.xlsx', df, 5, skipped_count=0)
         result.add_failure('file2.xlsx', 'Error')
         result.processing_time = 12.345
         
@@ -163,7 +170,9 @@ class TestBatchProcessingResult:
         assert summary['total_files'] == 2
         assert summary['successful_files'] == 1
         assert summary['failed_files'] == 1
-        assert summary['total_comments'] == 5
+        assert summary['total_rows'] == 5  # Updated key name
+        assert summary['processed_comments'] == 5  # New key for actual processed
+        assert summary['skipped_comments'] == 0
         assert '12.35' in summary['processing_time']
 
 
@@ -265,7 +274,7 @@ class TestBatchProcessor:
         )
         
         # Check combined file was created
-        assert hasattr(result, 'combined_output_path')
+        assert result.combined_output_path is not None
         assert result.combined_output_path.exists()
         
         # Check combined file contents
@@ -279,20 +288,25 @@ class TestBatchProcessor:
         """Test file validation with all valid files."""
         processor = BatchProcessor(mock_classifier)
         
-        valid, errors = processor.validate_files(sample_files)
+        valid, errors, cached_data = processor.validate_files(sample_files)
         
         assert len(valid) == 3
         assert len(errors) == 0
+        assert len(cached_data) == 3  # All files should be cached
+        for file_path in sample_files:
+            assert file_path in cached_data
+            assert isinstance(cached_data[file_path], pd.DataFrame)
     
     def test_validate_files_nonexistent(self, mock_classifier, temp_dir):
         """Test file validation with nonexistent file."""
         processor = BatchProcessor(mock_classifier)
         fake_file = temp_dir / "nonexistent.xlsx"
         
-        valid, errors = processor.validate_files([fake_file])
+        valid, errors, cached_data = processor.validate_files([fake_file])
         
         assert len(valid) == 0
         assert len(errors) == 1
+        assert len(cached_data) == 0
         assert 'not found' in errors[0].lower()
     
     def test_validate_files_wrong_format(self, mock_classifier, temp_dir):
@@ -303,20 +317,22 @@ class TestBatchProcessor:
         txt_file = temp_dir / "test.txt"
         txt_file.write_text("test data")
         
-        valid, errors = processor.validate_files([txt_file])
+        valid, errors, cached_data = processor.validate_files([txt_file])
         
         assert len(valid) == 0
         assert len(errors) == 1
+        assert len(cached_data) == 0
         assert 'Unsupported format' in errors[0]
     
     def test_validate_files_empty_data(self, mock_classifier, empty_file):
         """Test file validation with empty file."""
         processor = BatchProcessor(mock_classifier)
         
-        valid, errors = processor.validate_files([empty_file])
+        valid, errors, cached_data = processor.validate_files([empty_file])
         
         assert len(valid) == 0
         assert len(errors) == 1
+        assert len(cached_data) == 0
         assert 'No data' in errors[0]
     
     def test_validate_files_mixed(self, mock_classifier, sample_files, empty_file, temp_dir):
@@ -326,10 +342,11 @@ class TestBatchProcessor:
         fake_file = temp_dir / "fake.xlsx"
         all_files = sample_files + [empty_file, fake_file]
         
-        valid, errors = processor.validate_files(all_files)
+        valid, errors, cached_data = processor.validate_files(all_files)
         
         assert len(valid) == 3  # Only the sample files
         assert len(errors) == 2  # Empty file + fake file
+        assert len(cached_data) == 3  # Only valid files are cached
     
     def test_different_output_prefix(self, mock_classifier, sample_files, temp_dir):
         """Test using different output prefix."""

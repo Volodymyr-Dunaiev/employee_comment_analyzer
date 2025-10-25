@@ -12,6 +12,13 @@ data:
     max_length: 5000 # Maximum text length in characters
     required_columns: ["comment"] # Required columns in input file
 
+# Batch Processing Configuration
+batch_processing:
+  use_multiprocessing: false # Use ProcessPoolExecutor instead of ThreadPoolExecutor
+  max_workers: 1 # Number of parallel workers (processes or threads)
+  # Note: multiprocessing=true creates separate Python processes with isolated models
+  # Better for CPU-bound tasks but higher memory usage (one model per process)
+
 # Classification Categories (Ukrainian workplace feedback)
 categories:
   - "Колектив" # Team/Colleagues
