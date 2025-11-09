@@ -613,18 +613,29 @@ def show_inference_tab(config):
                         if not valid_files:
                             st.error("No valid files to process!")
                         else:
-                            # Process files with cached data (avoids re-reading files)
-                            progress_container = st.empty()
+                            # Setup progress tracking
+                            progress_bar = st.progress(0)
                             status_text = st.empty()
                             
-                            with st.spinner(f"Processing {len(valid_files)} file(s)..."):
-                                result = processor.process_files(
-                                    valid_files,
-                                    output_dir=temp_path / "results",
-                                    output_prefix=output_prefix,
-                                    combine_results=combine_results,
-                                    validated_data=cached_data
-                                )
+                            def update_progress(filename: str, current: int, total: int):
+                                """Callback for progress updates."""
+                                progress = current / total if total > 0 else 0
+                                progress_bar.progress(progress)
+                                status_text.text(f"Processing: {filename} ({current}/{total})")
+                            
+                            # Process files with progress tracking
+                            result = processor.process_files(
+                                valid_files,
+                                output_dir=temp_path / "results",
+                                output_prefix=output_prefix,
+                                combine_results=combine_results,
+                                validated_data=cached_data,
+                                progress_callback=update_progress
+                            )
+                            
+                            # Clear progress indicators
+                            progress_bar.empty()
+                            status_text.empty()
                             
                             # Display results summary
                             st.success("✅ Batch processing complete!")

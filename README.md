@@ -1,11 +1,19 @@
 # Ukrainian Comments Classifier
 
-![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![Performance](https://img.shields.io/badge/startup-87%25_faster-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 A machine learning application that classifies Ukrainian text comments into multiple predefined categories.
+
+**What's New in v2.4.0:**
+
+- ✅ **Realistic-scale testing** - 10k/20k row test datasets (actual use case)
+- ✅ **Progress tracking** - Real-time progress bars for long-running operations
+- ✅ **Memory profiling** - Built-in memory usage tracking
+- ✅ **Simplified testing** - No mock models, skip if real model unavailable
+- ✅ **Consolidated docs** - Reduced from 5 files to 2 (README + CHANGELOG)
 
 ## 📥 Download Options
 
@@ -412,6 +420,49 @@ For security policy, vulnerability reporting, and data handling practices, see [
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Skip Reason Feature
+
+The `skip_reason` column provides detailed categorization of why texts are skipped during classification.
+
+**Skip Reason Values:**
+
+| Value        | Meaning                             | Example            |
+| ------------ | ----------------------------------- | ------------------ |
+| `none`       | Text processed successfully         | "Great management" |
+| `empty`      | Text is empty string                | `""`               |
+| `whitespace` | Text contains only whitespace       | `"   \n\t  "`      |
+| `nan`        | Text is pandas NaN or string "nan"  | `NaN` or `"nan"`   |
+| `non_text`   | Text is not a string (number, bool) | `123` or `True`    |
+
+**Output Format:**
+
+```python
+# API output
+result = classifier.classify_batch(["Good", "", "Bad"])
+# {
+#     'Category1': [0.8, 0.0, 0.3],
+#     'skip_reason': ['none', 'empty', 'none'],
+#     '_metadata': {
+#         'skipped_indices': [1],
+#         'skip_reason_counts': {'none': 2, 'empty': 1}
+#     }
+# }
+```
+
+**Analyzing Skip Reasons:**
+
+```python
+# Read output file
+df = pd.read_excel('classified_output.xlsx')
+
+# Filter processed rows
+processed_df = df[df['skip_reason'] == 'none']
+
+# Count skip reasons
+skip_counts = df['skip_reason'].value_counts()
+print(skip_counts)
+```
 
 ## Support
 

@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0] - 2025-11-09
+
+### Added
+
+- **Realistic-Scale Testing**: Replaced small-scale tests (3, 5, 100 rows) with realistic datasets
+  - 10k-row tests (2 files × 5k rows) matching actual use case
+  - 20k-row tests for upper bound scenarios
+  - Memory profiling test to track resource usage
+  - 2-file multiprocessing integration test
+  - Realistic data generator with proper distribution (empty/whitespace/nan)
+- **Progress Indicators**: Real-time progress tracking for long-running operations
+  - Progress callback support in `BatchProcessor.process_files()`
+  - Progress bar in Streamlit UI showing file-by-file completion
+  - Status text showing current file being processed
+  - Automatically clears on completion
+
+### Changed
+
+- **Testing Infrastructure**: Simplified and focused on real-world scenarios
+
+  - Removed mock model infrastructure (`tests/fixtures/mock_model.py`)
+  - Tests skip gracefully if model unavailable (no mocks needed)
+  - Integration tests require real trained model in `model/ukr_multilabel/`
+  - Reduced test complexity while improving coverage of actual use cases
+
+- **Documentation**: Consolidated from 5 files to 2
+  - Merged `docs/SKIP_REASON_GUIDE.md` into README.md
+  - Merged `docs/MIGRATION_GUIDE_v2.3.md` into README.md
+  - Removed separate `docs/` directory
+  - Documentation now: README.md + CHANGELOG.md only
+
+### Benefits
+
+- **More Realistic Testing**: Tests now match actual workload (2 files, 1-5k rows each)
+- **Better Visibility**: Users see real-time progress for multi-minute operations
+- **Simpler Maintenance**: Fewer documentation files to keep in sync
+- **Cleaner Tests**: No complex mocking, just skip if model unavailable
+
 ## [2.3.1] - 2025-10-25
 
 ### Changed

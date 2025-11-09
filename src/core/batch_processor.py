@@ -4,14 +4,15 @@ Batch file processing module for handling multiple files concurrently.
 Supports:
 - Multiple Excel/CSV files
 - Parallel processing with configurable workers (threads or processes)
-- Progress tracking
+- Progress tracking with callbacks
 - Error handling per file
 - Consolidated results
+- Checkpoint/resume capability
 """
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Union
+from typing import List, Dict, Optional, Tuple, Union, Callable
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import pandas as pd
 from datetime import datetime
@@ -411,7 +412,8 @@ class BatchProcessor:
         output_dir: Optional[Path] = None,
         output_prefix: str = "classified_",
         combine_results: bool = False,
-        validated_data: Optional[Dict[Path, pd.DataFrame]] = None
+        validated_data: Optional[Dict[Path, pd.DataFrame]] = None,
+        progress_callback: Optional[Callable[[str, int, int], None]] = None
     ) -> BatchProcessingResult:
         """
         Process multiple files in batch.
@@ -422,14 +424,17 @@ class BatchProcessor:
             output_prefix: Prefix for output filenames
             combine_results: If True, create combined output file
             validated_data: Pre-loaded DataFrames from validation (avoids duplicate I/O)
+            progress_callback: Optional callback(filename, current, total) for progress updates
         
         Returns:
             BatchProcessingResult with processing details
         """
         start_time = datetime.now()
         result = BatchProcessingResult()
+        total_files = len(file_paths)
+        completed_files = 0
         
-        logger.info(f"Starting batch processing of {len(file_paths)} files")
+        logger.info(f"Starting batch processing of {total_files} files")
         
         # Choose executor based on configuration
         executor_class = ProcessPoolExecutor if self.use_multiprocessing else ThreadPoolExecutor
@@ -472,6 +477,14 @@ class BatchProcessor:
                 try:
                     output_path, df, comments_count, skipped_count = future.result()
                     result.add_success(filename, df, comments_count, skipped_count)
+                    completed_files += 1
+                    
+                    # Invoke progress callback
+                    if progress_callback:
+                        try:
+                            progress_callback(filename, completed_files, total_files)
+                        except Exception as e:
+                            logger.warning(f"Progress callback failed: {e}")
                     
                     # Log per-file skip count for operator visibility
                     if skipped_count > 0:
@@ -486,6 +499,15 @@ class BatchProcessor:
                 except Exception as e:
                     error_msg = str(e)
                     result.add_failure(filename, error_msg)
+                    completed_files += 1
+                    
+                    # Invoke progress callback even on failure
+                    if progress_callback:
+                        try:
+                            progress_callback(filename, completed_files, total_files)
+                        except Exception as e2:
+                            logger.warning(f"Progress callback failed: {e2}")
+                    
                     logger.error(f"✗ Failed {filename}: {error_msg}")
         
         # Calculate processing time
