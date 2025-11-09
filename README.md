@@ -279,9 +279,9 @@ model:
     - "Умови праці"
     - "Колектив"
     - "Самореалізація"
-  confidence_threshold: 0.3  # Adjust threshold (0.0-1.0)
-  max_length: 512           # Max token length
-  device: "auto"            # auto, cpu, cuda, or mps
+  confidence_threshold: 0.3 # Adjust threshold (0.0-1.0)
+  max_length: 512 # Max token length
+  device: "auto" # auto, cpu, cuda, or mps
 
 training:
   epochs: 3
@@ -297,17 +297,20 @@ paths:
 ### Key Settings
 
 **Confidence Threshold** (0.0-1.0):
+
 - **0.3** (default): Balanced precision/recall
 - **0.5**: Higher precision, fewer predictions
 - **0.2**: Higher recall, more predictions
 
 **Device Selection:**
+
 - **auto**: Automatically uses GPU if available
 - **cuda**: Force NVIDIA GPU
 - **mps**: Force Apple Silicon GPU
 - **cpu**: Force CPU (slower but always works)
 
 **Batch Size:**
+
 - **8**: Good for most GPUs
 - **4**: If out of memory errors
 - **16**: If you have powerful GPU
@@ -615,6 +618,7 @@ pytest --cov=src tests/
 ### Logging Policy
 
 **What IS logged:**
+
 - Processing errors and exceptions
 - File names and row counts
 - Skip reasons and data quality metrics
@@ -622,6 +626,7 @@ pytest --cov=src tests/
 - System performance metrics
 
 **What is NOT logged:**
+
 - Full comment text content
 - Personal information from comments
 - User identity or authentication details
@@ -636,16 +641,19 @@ pytest --cov=src tests/
 ### Deployment Security
 
 **For Portable .exe Users:**
+
 - Run in isolated directory (no admin needed)
 - Logs stored locally in `logs/`
 - Config in `config.yaml` (review before sharing)
 
 **For Developers:**
+
 - Use virtual environment: `python -m venv venv`
 - Dependency scanning: `pip-audit`
 - Update packages: `pip install --upgrade -r requirements.txt`
 
 **For Organizations:**
+
 - Review `config.yaml` before deployment
 - Configure logging levels appropriately
 - Restrict file upload directories
@@ -660,6 +668,7 @@ Report security issues to: **volodymyrdunaiev@gmail.com**
 ## 📚 Documentation
 
 **Quick Links:**
+
 - **Version History**: See [CHANGELOG.md](CHANGELOG.md)
 - **Issues/Support**: [GitHub Issues](https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer/issues)
 
@@ -669,20 +678,20 @@ Report security issues to: **volodymyrdunaiev@gmail.com**
 
 ## 🛠️ Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| **"Model not found"** | Run training first: `Train_Model.exe --data data\train.xlsx` |
-| **"Out of memory"** | Reduce batch_size to 4 in config.yaml |
-| **"CUDA not available"** | Set `device: "cpu"` in config.yaml |
-| **"Invalid file format"** | Ensure Excel has 'text' column with comments |
-| **"No labels column"** | For training: add 'labels' column with categories |
-| **Low F1 score (<0.5)** | Need more training data (100+ samples recommended) |
-| **Slow processing** | Enable GPU: set `device: "cuda"` (NVIDIA) or `device: "mps"` (Apple Silicon) |
-| **Import errors** | Reinstall: `pip install -e .` |
-| **Permission denied** | Run app from user directory, not system folders |
-| **Excel won't open** | Check file isn't already open in Excel |
-| **Model predictions wrong** | Retrain with more diverse examples or adjust threshold |
-| **Portable .exe won't start** | Extract ZIP fully, disable antivirus briefly, check Windows Defender |
+| Issue                         | Solution                                                                     |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| **"Model not found"**         | Run training first: `Train_Model.exe --data data\train.xlsx`                 |
+| **"Out of memory"**           | Reduce batch_size to 4 in config.yaml                                        |
+| **"CUDA not available"**      | Set `device: "cpu"` in config.yaml                                           |
+| **"Invalid file format"**     | Ensure Excel has 'text' column with comments                                 |
+| **"No labels column"**        | For training: add 'labels' column with categories                            |
+| **Low F1 score (<0.5)**       | Need more training data (100+ samples recommended)                           |
+| **Slow processing**           | Enable GPU: set `device: "cuda"` (NVIDIA) or `device: "mps"` (Apple Silicon) |
+| **Import errors**             | Reinstall: `pip install -e .`                                                |
+| **Permission denied**         | Run app from user directory, not system folders                              |
+| **Excel won't open**          | Check file isn't already open in Excel                                       |
+| **Model predictions wrong**   | Retrain with more diverse examples or adjust threshold                       |
+| **Portable .exe won't start** | Extract ZIP fully, disable antivirus briefly, check Windows Defender         |
 
 ### Common Training Issues
 
