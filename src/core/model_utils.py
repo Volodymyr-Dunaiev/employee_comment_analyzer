@@ -32,8 +32,10 @@ def load_model_and_tokenizer(model_path):
     #     >>> outputs = model(**inputs)
     
     try:
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        model = AutoModelForSequenceClassification.from_pretrained(model_path)
+        # Force local_files_only=True to prevent any internet access
+        # This ensures the model must exist locally or loading will fail
+        tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+        model = AutoModelForSequenceClassification.from_pretrained(model_path, local_files_only=True)
         return tokenizer, model
     except Exception as e:
         raise ValueError(f"Failed to load model and tokenizer: {str(e)}")

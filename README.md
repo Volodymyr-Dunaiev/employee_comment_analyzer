@@ -613,7 +613,29 @@ pytest --cov=src tests/
 - ❌ Send data to external servers
 - ❌ Store uploaded files permanently
 - ❌ Log full comment text
-- ❌ Access internet during processing
+- ❌ **Access internet during classification** (enforced with `local_files_only=True`)
+
+### Internet Access Policy
+
+**Classification (Inference)**: **100% Offline** ✅
+
+- Model loading uses `local_files_only=True` flag
+- All predictions run on local model files
+- No network requests during processing
+- Guaranteed air-gapped operation
+
+**Training**: **Internet Required ONLY for Initial Setup** ⚠️
+
+- First-time training downloads base model (e.g., `xlm-roberta-base` ~500MB)
+- Downloaded once from Hugging Face Hub
+- Cached locally for future use
+- Subsequent training/refinement uses local cache
+
+**Portable .exe**: **Fully Offline After Setup** ✅
+
+- Includes pre-trained model in distribution
+- No internet needed for classification
+- Optional: Training requires internet only for base model download
 
 ### Logging Policy
 
