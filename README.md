@@ -450,31 +450,46 @@ Process multiple files at once for improved efficiency:
 
 ### Tab 2: Training
 
-Use this tab to train a new model or fine-tune an existing one:
+Use this tab to train a new model or refine an existing one:
+
+#### Training Modes
+
+**🆕 Train from Base Model (New Model)**
+- Start fresh with pre-trained model (xlm-roberta-base)
+- Best for: First-time training, new categories, poor existing model
+- Parameters: 3-5 epochs, learning rate 2e-5
+
+**🔄 Continue Training Existing Model (Refinement)**
+- Load and improve your existing trained model
+- Best for: Adding new samples, fixing mistakes, expanding categories
+- Parameters: 1-2 epochs, learning rate 1e-5 (auto-adjusted by UI)
+- Previous model auto-backed up to `model_backups/v#/`
+
+#### Steps
 
 1. **Upload Training Data**: Excel/CSV file with labeled comments
-
    - Required columns: `text` (comments) and `labels` (categories)
    - Labels format: comma-separated or list format
    - Minimum 10 samples required
 
-2. **Configure Training Parameters**:
+2. **Select Training Mode**:
+   - **Train from base model**: Choose xlm-roberta-base, bert-base-multilingual-cased, or xlm-roberta-large
+   - **Continue training**: Enter path to existing model (default: `./model/ukr_multilabel`)
 
+3. **Configure Training Parameters** (auto-adjusted for refinement):
    - Text/Labels column names
-   - Number of epochs (1-10)
-   - Batch size (4-32)
-   - Learning rate (1e-5 to 5e-5)
-   - Test/validation split percentages
-   - Base model selection (xlm-roberta-base, bert-base-multilingual-cased, etc.)
+   - Number of epochs (3-5 for new, 1-2 for refinement)
+   - Batch size (4-32, based on RAM)
+   - Learning rate (2e-5 for new, 1e-5 for refinement)
+   - Test/validation split percentages (10% recommended)
    - Output directory for trained model
 
-3. **Start Training**:
-
+4. **Start Training**:
    - Click "Start Training"
-   - Monitor progress and metrics
+   - Monitor progress bar and status
    - View training results (loss, F1 scores, precision, recall)
 
-4. **Use Trained Model**:
+5. **Use Trained Model**:
    - Update `config.yaml` to point to your trained model
    - Switch to Classification tab to test
 

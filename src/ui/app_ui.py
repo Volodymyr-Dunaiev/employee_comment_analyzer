@@ -60,20 +60,34 @@ def show_training_tab(config):
     with st.expander("ℹ️ Training Guide - Click to expand", expanded=False):
         st.markdown("""
         ### Quick Start
-        1. **Upload** your labeled Excel/CSV file
-        2. **Configure** column names and parameters
-        3. **Start training** and monitor progress
-        4. **Update config.yaml** to use the new model
+        1. **Choose training mode**: New model or refine existing
+        2. **Upload** your labeled Excel/CSV file
+        3. **Configure** column names and parameters (auto-adjusted for refinement)
+        4. **Start training** and monitor progress
+        5. **Update config.yaml** to use the new model
+        
+        ### Training Modes
+        
+        **🆕 Train from base model:**
+        - Start fresh with pre-trained xlm-roberta-base or similar
+        - Best for: First-time training, completely new categories, poor existing model
+        - Epochs: 3-5 | Learning rate: 2e-5
+        
+        **🔄 Continue training existing model (refinement):**
+        - Loads your existing trained model and improves it with new data
+        - Best for: Adding new samples, fixing mistakes, expanding categories
+        - Epochs: 1-2 | Learning rate: 1e-5 (lower to preserve knowledge)
+        - ⚠️ Previous model auto-backed up to `model_backups/v#/`
         
         ### Parameter Guide
         
-        | Parameter | Recommended | What it does |
-        |-----------|------------|--------------|
-        | **Epochs** | 3-5 | How many times to train on full dataset. More = better learning, but diminishing returns after 5. |
-        | **Batch Size** | 8 (4GB RAM)<br>16 (8GB RAM)<br>32 (16GB+ RAM) | Samples per training step. Higher = faster but needs more memory. |
-        | **Learning Rate** | 2e-5 | Speed of learning. Use 1e-5 for fine-tuning, 2e-5 for new training, 5e-5 for quick experiments. |
-        | **Test Split** | 10% | Data reserved for final evaluation (never seen during training). |
-        | **Validation Split** | 10% | Data used to prevent overfitting during training. |
+        | Parameter | New Model | Refinement | What it does |
+        |-----------|-----------|------------|--------------|
+        | **Epochs** | 3-5 | 1-2 | Training passes. Lower for refinement to avoid overfitting. |
+        | **Batch Size** | 8 (4GB RAM)<br>16 (8GB+) | Same | Samples per step. Higher = faster but more memory. |
+        | **Learning Rate** | 2e-5 | 1e-5 | Speed of learning. Lower for refinement preserves existing knowledge. |
+        | **Test Split** | 10% | 10% | Data reserved for final testing. |
+        | **Validation Split** | 10% | 10% | Data for preventing overfitting. |
         
         ### Data Requirements
         - **Minimum:** 50 total samples, 5 per category
@@ -81,18 +95,18 @@ def show_training_tab(config):
         - **Excellent:** 500+ samples per category
         
         ### Tips
-        - Start with default parameters (3 epochs, batch size 8, learning rate 2e-5)
+        - UI auto-adjusts parameters when you select refinement mode
         - Monitor validation metrics - if training improves but validation doesn't, you're overfitting
-        - Previous models are auto-backed up to `model_backups/v#/` before overwriting
+        - Model backups saved automatically before overwriting
         """)
     
     st.markdown("""
     ### Training Instructions
     1. Upload a labeled dataset (Excel/CSV file)
-    2. Configure training parameters
-    3. Start training process
-    4. Monitor training progress
-    5. Save the trained model
+    2. Choose training mode (new or refinement)
+    3. Configure training parameters (auto-adjusted for mode)
+    4. Start training and monitor progress
+    5. Model saved automatically
     
     **Supported Label Formats:**
     - **Single column**: All labels in one cell, separated by commas (e.g., "Category1, Category2")
@@ -135,12 +149,14 @@ def show_training_tab(config):
         with col2:
             st.subheader("Training Parameters")
             
+            # Adjust default epochs based on training mode
+            default_epochs = 2 if training_mode == "Continue training existing model (refinement)" else 3
             epochs = st.slider(
                 "Number of Epochs", 
                 min_value=1, 
                 max_value=10, 
-                value=3,
-                help="How many times the model will see the entire training dataset. More epochs = better learning but risk of overfitting. Start with 3."
+                value=default_epochs,
+                help="**New model**: 3-5 epochs. **Refinement**: 1-2 epochs to avoid overfitting on new data."
             )
             
             batch_size = st.slider(
@@ -152,12 +168,14 @@ def show_training_tab(config):
                 help="Number of samples processed together. Larger = faster but uses more memory. Use 4-8 for 4GB RAM, 16-32 for 16GB+ RAM."
             )
             
+            # Adjust default learning rate for refinement
+            default_lr = 1e-5 if training_mode == "Continue training existing model (refinement)" else 2e-5
             learning_rate = st.select_slider(
                 "Learning Rate",
                 options=[1e-5, 2e-5, 3e-5, 5e-5],
-                value=2e-5,
+                value=default_lr,
                 format_func=lambda x: f"{x:.0e}",
-                help="How fast the model learns. 2e-5 is a good default. Lower (1e-5) for fine-tuning existing models, higher (5e-5) for new training."
+                help="**New training**: 2e-5 (default). **Refinement**: 1e-5 (lower to preserve existing knowledge)."
             )
             
         # Configure train/test/validation split percentages
@@ -181,24 +199,76 @@ def show_training_tab(config):
         
         # Model architecture selection
         st.subheader("Model Configuration")
-        model_name = st.selectbox(
-            "Base Model",
-            ["xlm-roberta-base", "bert-base-multilingual-cased", "xlm-roberta-large"],
+        
+        # Training mode selection
+        training_mode = st.radio(
+            "Training Mode",
+            ["Train from base model", "Continue training existing model (refinement)"],
             index=0,
-            help="Pre-trained model to start from. xlm-roberta-base (default) is best for Ukrainian text. Large version is slower but more accurate."
+            help="**Train from base**: Start fresh with a pre-trained model like xlm-roberta-base.\n**Continue training**: Load your existing trained model and refine it with new data."
         )
         
-        output_dir = st.text_input(
-            "Output Directory", 
-            value="./trained_model",
-            help="Where to save the trained model files. Default: ./trained_model"
-        )
+        if training_mode == "Train from base model":
+            model_name = st.selectbox(
+                "Base Model",
+                ["xlm-roberta-base", "bert-base-multilingual-cased", "xlm-roberta-large"],
+                index=0,
+                help="Pre-trained model to start from. xlm-roberta-base (default) is best for Ukrainian text. Large version is slower but more accurate."
+            )
+            output_dir = st.text_input(
+                "Output Directory", 
+                value="./trained_model",
+                help="Where to save the trained model files. Default: ./trained_model"
+            )
+        else:  # Continue training existing model
+            model_name = st.text_input(
+                "Existing Model Path",
+                value="./model/ukr_multilabel",
+                help="Path to your existing trained model directory. Previous version will be auto-backed up to model_backups/v#/"
+            )
+            output_dir = model_name  # Save back to same location
+            
+            # Show warning about refinement
+            st.info("💡 **Refinement Tips:**\n"
+                   "- Use 1-2 epochs (not 3-5) to avoid overfitting\n"
+                   "- Learning rate 1e-5 works better for fine-tuning\n"
+                   "- Previous model auto-backed up before overwriting")
+            
+            # Auto-adjust recommended parameters for refinement
+            if 'epochs' not in st.session_state:
+                st.session_state.epochs_refinement = True
+        
+        output_dir_display = st.text_input(
+            "Output Directory" if training_mode == "Train from base model" else "Model will be saved to",
+            value=output_dir,
+            disabled=(training_mode != "Train from base model"),
+            help="Model save location"
+        ) if training_mode != "Train from base model" else None
         
         # Start training button
         if st.button("Start Training", type="primary"):
             try:
                 from src.core.train_interface import train_from_ui, validate_training_data
                 import pandas as pd
+                import os
+                
+                # Check if refining an existing model
+                is_refinement = (training_mode == "Continue training existing model (refinement)")
+                
+                # Validate existing model path if refinement mode
+                if is_refinement:
+                    if not os.path.exists(model_name):
+                        st.error(f"❌ Model path not found: `{model_name}`\n\nPlease ensure the model directory exists and contains trained model files.")
+                        st.stop()
+                    
+                    # Check for model files
+                    required_files = ['config.json', 'pytorch_model.bin']
+                    missing_files = [f for f in required_files if not os.path.exists(os.path.join(model_name, f))]
+                    if missing_files:
+                        st.error(f"❌ Invalid model directory. Missing files: {', '.join(missing_files)}")
+                        st.stop()
+                    
+                    st.info(f"🔄 **Refinement Mode**: Loading existing model from `{model_name}`")
                 
                 # Load and validate training data
                 with st.spinner("Loading training data..."):
@@ -221,8 +291,11 @@ def show_training_tab(config):
                 with st.expander("Preview Training Data"):
                     st.dataframe(df.head(10))
                 
-                # Confirm training
-                st.warning("⚠️ Training will start. This may take several minutes to hours depending on dataset size.")
+                # Confirm training with mode-specific message
+                if is_refinement:
+                    st.warning("⚠️ **Refinement Training** will start. Your existing model will be backed up automatically before updating.")
+                else:
+                    st.warning("⚠️ **New Model Training** will start. This may take several minutes to hours depending on dataset size.")
                 
                 # Progress tracking
                 progress_bar = st.progress(0)
