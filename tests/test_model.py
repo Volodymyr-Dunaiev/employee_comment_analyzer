@@ -56,8 +56,8 @@ def test_classifier_predictions(mock_config, monkeypatch):
             return type('obj', (object,), {'logits': torch.tensor([[0.9, 0.1], [0.1, 0.9]])})()
 
     # Apply mocks
-    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args: MockTokenizer())
-    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args: MockModel())
+    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args, **kwargs: MockTokenizer())
+    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args, **kwargs: MockModel())
 
     # Initialize classifier and test predictions
     classifier = CommentClassifier(mock_config)

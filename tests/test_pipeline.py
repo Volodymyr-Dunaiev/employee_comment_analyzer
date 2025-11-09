@@ -81,15 +81,15 @@ def mock_data():
 
 def test_classifier_initialization(mock_config, mock_tokenizer, mock_model, monkeypatch):
     # Test classifier initialization with valid config.
-    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args: mock_tokenizer())
-    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args: mock_model())
+    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args, **kwargs: mock_tokenizer())
+    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args, **kwargs: mock_model())
     classifier = CommentClassifier(mock_config)
     assert classifier.config == mock_config
 
 def test_invalid_config(mock_tokenizer, mock_model, monkeypatch):
     # Test classifier initialization with invalid config.
-    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args: mock_tokenizer())
-    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args: mock_model())
+    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args, **kwargs: mock_tokenizer())
+    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args, **kwargs: mock_model())
     invalid_config = {
         'model': {
             'path': 'xlm-roberta-base',
@@ -101,16 +101,16 @@ def test_invalid_config(mock_tokenizer, mock_model, monkeypatch):
 
 def test_predict_comments_invalid_column(mock_config, mock_data, mock_tokenizer, mock_model, monkeypatch):
     # Test prediction with invalid column name.
-    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args: mock_tokenizer())
-    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args: mock_model())
+    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args, **kwargs: mock_tokenizer())
+    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args, **kwargs: mock_model())
     classifier = CommentClassifier(mock_config)
     with pytest.raises(PipelineError):
         classifier.predict_comments(mock_data, 'nonexistent_column', mock_config['categories'])
 
 def test_predict_comments_empty_data(mock_config, mock_tokenizer, mock_model, monkeypatch):
     # Test prediction with empty DataFrame.
-    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args: mock_tokenizer())
-    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args: mock_model())
+    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args, **kwargs: mock_tokenizer())
+    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args, **kwargs: mock_model())
     classifier = CommentClassifier(mock_config)
     empty_df = pd.DataFrame({'text': []})
     predictions = classifier.predict_comments(empty_df, 'text', mock_config['categories'])
@@ -118,18 +118,9 @@ def test_predict_comments_empty_data(mock_config, mock_tokenizer, mock_model, mo
 
 def test_predict_comments_batch(mock_config, mock_data, mock_tokenizer, mock_model, monkeypatch):
     # Test batch prediction.
-    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args: mock_tokenizer())
-    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args: mock_model())
+    monkeypatch.setattr('transformers.AutoTokenizer.from_pretrained', lambda *args, **kwargs: mock_tokenizer())
+    monkeypatch.setattr('transformers.AutoModelForSequenceClassification.from_pretrained', lambda *args, **kwargs: mock_model())
     classifier = CommentClassifier(mock_config)
     predictions = classifier.predict_comments(mock_data, 'text', mock_config['categories'])
     assert len(predictions) == len(mock_data)
     assert all(isinstance(pred, list) for pred in predictions)
-    with pytest.raises(PipelineError):
-        classifier.predict_comments(mock_data, 'nonexistent_column', mock_config['categories'])
-
-def test_predict_comments_empty_data(mock_config):
-    # Test prediction with empty DataFrame.
-    classifier = CommentClassifier(mock_config)
-    empty_df = pd.DataFrame({'text': []})
-    result = classifier.predict_comments(empty_df, 'text', mock_config['categories'])
-    assert len(result) == 0
