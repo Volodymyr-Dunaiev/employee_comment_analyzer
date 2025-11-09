@@ -15,18 +15,131 @@ A machine learning application that classifies Ukrainian text comments into mult
 - ✅ **Simplified testing** - No mock models, skip if real model unavailable
 - ✅ **Consolidated docs** - Reduced from 5 files to 2 (README + CHANGELOG)
 
-## 📥 Download Options
+## 📥 Download & Installation
 
-**No Python Installation Required:**
+### Option 1: Portable Application (No Python Required)
 
-- Download the portable `.exe` version from [Releases](https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer/releases)
-- Extract and run `Comments_Classifier.exe` – that's it!
-- See [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) for details
+**For End Users on Windows:**
 
-**From Source (Python Required):**
+1. Download `Comments_Classifier_Portable.zip` from [Releases](https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer/releases)
+2. Extract anywhere on your computer
+3. Double-click `Comments_Classifier.exe` or `START_APP.bat`
+4. App opens automatically in your browser at http://localhost:8501
+5. Upload Excel → Classify → Download results
 
-- Clone this repository and install dependencies (see [Installation](#installation) below)
-- Run from source code for customization and development
+**What's included:**
+
+- `Comments_Classifier.exe` - Main application
+- `Train_Model.exe` - Training utility
+- `config.yaml` - Settings
+- `data/`, `model/`, `logs/` - Working directories
+- Quick-start documentation
+
+**System Requirements:**
+
+- Windows 10/11
+- 4GB RAM minimum (8GB recommended)
+- 2GB free disk space
+
+### Option 2: From Source (Python Required)
+
+**For Developers and Customization:**
+
+1. **Clone the repository:**
+
+```bash
+git clone https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer
+cd employee_comment_analyzer
+```
+
+2. **Create virtual environment:**
+
+```bash
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+```
+
+3. **Install package:**
+
+```bash
+pip install -e .
+```
+
+**For Development:**
+
+```bash
+# Install with dev dependencies
+pip install -e ".[dev]"
+
+# Set up pre-commit hooks
+pre-commit install
+
+# Run tests
+pytest tests/
+```
+
+---
+
+## 🚀 Quick Start (5 Minutes)
+
+### Step 1: Start the Application
+
+**From portable .exe:**
+
+```cmd
+START_APP.bat
+```
+
+**From source:**
+
+```bash
+streamlit run src/ui/app_ui.py
+```
+
+The app opens in your browser at `http://localhost:8501`
+
+**Note:** First startup is fast (~1.3 seconds) thanks to lazy-loading optimization.
+
+### Step 2: Classify Comments
+
+1. Go to the **Classification** tab
+2. Upload an Excel file with a `comment` column
+3. Click **Run Classification**
+4. Download the results with predicted categories
+
+**Example Input:**
+
+| comment                         |
+| ------------------------------- |
+| Чудова команда, всі дуже дружні |
+| Потрібно покращити умови праці  |
+
+**Example Output:**
+
+| comment                         | Predicted_Categories               | skip_reason |
+| ------------------------------- | ---------------------------------- | ----------- |
+| Чудова команда, всі дуже дружні | Колектив, Взаємодія та комунікація | none        |
+| Потрібно покращити умови праці  | Умови праці                        | none        |
+
+### Step 3: Train Your Own Model (Optional)
+
+1. Prepare training data (Excel/CSV):
+
+| text           | labels                            |
+| -------------- | --------------------------------- |
+| Чудова команда | Колектив,Взаємодія та комунікація |
+| Погані умови   | Умови праці                       |
+
+**Requirements:**
+
+- Minimum 50 samples recommended
+- Labels can be comma-separated or in multiple columns
+- At least 5 samples per category
+
+2. Go to **Training** tab, upload file, configure parameters
+3. Click **Start Training**
+4. Wait for completion (10 minutes to several hours)
+5. Review metrics (F1 score > 0.7 is good)
 
 ---
 
@@ -45,70 +158,161 @@ A machine learning application that classifies Ukrainian text comments into mult
 - **Automatic memory management** - Auto-tunes batch size based on available RAM
 - **Model versioning** - Auto-backup before overwriting trained models
 
-## Installation
+---
 
-> **Performance Note:** v2.1.0 features optimized lazy-loading for instant startup (~1.3s import time). Models load only when needed, saving time and memory.
+## 🎓 Training Guide
 
-1. Clone the repository:
+### Preparing Training Data
 
-```bash
-git clone https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer
-cd employee_comment_analyzer
+Create an Excel/CSV file with comments and their categories. The app supports three formats:
+
+**Format 1: Single labels column (comma-separated)**
+
+```
+| text                    | labels                    |
+|------------------------|---------------------------|
+| Чудова команда         | Зарплата,Колектив        |
+| Погані умови           | Умови праці              |
 ```
 
-2. Create a virtual environment:
+**Format 2: Category columns (recommended)**
 
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+| text              | Category 1  | Category 2    |
+|------------------|-------------|---------------|
+| Чудова команда   | Зарплата    | Колектив      |
+| Погані умови     | Умови праці |               |
 ```
 
-3. Install the package (installs all dependencies from pyproject.toml):
+**Format 3: Pattern columns**
 
-```bash
-pip install -e .
+```
+| text              | label_1     | label_2       |
+|------------------|-------------|---------------|
+| Чудова команда   | Зарплата    | Колектив      |
 ```
 
-**For Development:**
+### Training via UI
 
-```bash
-# Install with development dependencies (testing, formatting, linting)
-pip install -e ".[dev]"
+1. **Upload Training File** in Training tab
+2. **Configure Parameters:**
 
-# Set up pre-commit hooks
-pre-commit install
+   - **Text Column**: Column name with comments (default: "text")
+   - **Labels Column**: Column name with categories (default: "labels")
+   - **Epochs**: 3-5 for new models, 1-2 for refinement
+   - **Batch Size**: 8 (reduce to 4 if out of memory)
+   - **Learning Rate**: 2e-5 (default, usually good)
+   - **Base Model**: xlm-roberta-base (best for Ukrainian)
+   - **Output Directory**: Where to save (e.g., "./my_model")
 
-# Run tests
-pytest tests/
+3. **Start Training** and monitor progress
+4. **Review Metrics**: F1, precision, recall (F1 > 0.7 is good)
+
+### Training via Command Line (Portable .exe)
+
+```cmd
+Train_Model.exe --data data\train.xlsx --epochs 3
 ```
 
-## Configuration
+**Options:**
 
-Edit `config.yaml` to customize:
+```cmd
+--data              Training file path (required)
+--epochs            Number of epochs (default: 3)
+--batch_size        Batch size (default: 8)
+--lr                Learning rate (default: 2e-5)
+--model_dir         Output directory (default: model\ukr_multilabel)
+--text_column       Text column name (default: text)
+--labels_column     Labels column name (default: labels)
+```
 
-- Model parameters
-- Categories
-- Input/output settings
-- Logging configuration
-- Security settings
+### Model Refinement
 
-Example configuration:
+To update an existing model with new data:
+
+```cmd
+Train_Model.exe --data data\new_samples.xlsx --model_name_or_path model\ukr_multilabel --epochs 2
+```
+
+**Previous model automatically backed up** to `model_backups/v1/`, `v2/`, etc.
+
+### Restoring Previous Model
+
+If new model performs poorly:
+
+```powershell
+# Windows
+Remove-Item -Recurse -Force model
+Copy-Item -Recurse model_backups/v1 model
+```
+
+```bash
+# Linux/Mac
+rm -rf model
+cp -r model_backups/v1 model
+```
+
+### Training Tips
+
+- **More data is better**: Aim for 100+ samples
+- **Balanced categories**: Similar sample counts per category
+- **Quality labels**: Accurate and consistent categorization
+- **Monitor validation metrics**: Watch for overfitting
+- **Auto-validation**: Training checks data quality before starting
+
+---
+
+## ⚙️ Configuration
+
+### config.yaml
+
+All settings configured in `config.yaml`:
 
 ```yaml
 model:
-  path: "model"
+  model_name_or_path: "xlm-roberta-base"
+  model_dir: "./model/ukr_multilabel"
+  base_model_name: "xlm-roberta-base"
+  labels:
+    - "Керівництво"
+    - "Зарплата"
+    - "Умови праці"
+    - "Колектив"
+    - "Самореалізація"
+  confidence_threshold: 0.3  # Adjust threshold (0.0-1.0)
+  max_length: 512           # Max token length
+  device: "auto"            # auto, cpu, cuda, or mps
+
+training:
+  epochs: 3
   batch_size: 8
-  device: "cuda" # or "cpu"
+  learning_rate: 2e-5
+  validation_split: 0.2
 
-data:
-  text_column: "comment"
-  chunk_size: 1000
-
-categories:
-  - "category1"
-  - "category2"
-  # Add your categories
+paths:
+  data_dir: "./data"
+  log_dir: "./logs"
 ```
+
+### Key Settings
+
+**Confidence Threshold** (0.0-1.0):
+- **0.3** (default): Balanced precision/recall
+- **0.5**: Higher precision, fewer predictions
+- **0.2**: Higher recall, more predictions
+
+**Device Selection:**
+- **auto**: Automatically uses GPU if available
+- **cuda**: Force NVIDIA GPU
+- **mps**: Force Apple Silicon GPU
+- **cpu**: Force CPU (slower but always works)
+
+**Batch Size:**
+- **8**: Good for most GPUs
+- **4**: If out of memory errors
+- **16**: If you have powerful GPU
+
+---
 
 ## Architecture
 
@@ -385,43 +589,122 @@ pytest --cov=src tests/
 - Docstrings for public APIs
 - Type hints for function signatures
 
-## Security
+## 🔒 Security
 
-For security policy, vulnerability reporting, and data handling practices, see [SECURITY.md](SECURITY.md).
+### Data Handling and Privacy
 
-**Quick Security Checklist:**
+- **Local Processing**: All classification and training happens on your machine
+- **No Data Transmission**: Comments never leave your system
+- **No Cloud Dependencies**: Models run locally, no external APIs
+- **PII Responsibilities**: You control data access and deletion
 
-- Input validation for all uploads
-- File size and type restrictions
-- Local processing (no external data transmission)
-- Log redaction (no PII in logs)
-- Dependency scanning via `pip-audit`
+### What We Do
 
-## Documentation
+- ✅ Process data locally with PyTorch/Transformers
+- ✅ Validate input files (size, format, columns)
+- ✅ Sanitize file paths and text inputs
+- ✅ Log errors without sensitive data
 
-### Core Documentation
+### What We Don't Do
 
-- **[README.md](README.md)** - This file: Overview, installation, architecture
-- **[QUICKSTART.md](QUICKSTART.md)** - 5-minute getting started guide with examples
-- **[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)** - Portable .exe deployment for non-Python users
+- ❌ Send data to external servers
+- ❌ Store uploaded files permanently
+- ❌ Log full comment text
+- ❌ Access internet during processing
 
-### Reference Documentation
+### Logging Policy
 
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history and detailed changes (v2.1.0+)
-- **[SECURITY.md](SECURITY.md)** - Security policy, data handling, privacy guidelines
-- **[model_backups/README.md](model_backups/README.md)** - Model versioning and rollback guide
+**What IS logged:**
+- Processing errors and exceptions
+- File names and row counts
+- Skip reasons and data quality metrics
+- Model predictions (categories only, not full text)
+- System performance metrics
 
-### User Guides
+**What is NOT logged:**
+- Full comment text content
+- Personal information from comments
+- User identity or authentication details
+- File contents beyond metadata
 
-- **For End Users**: Start with QUICKSTART.md → DEPLOYMENT_GUIDE.md
-- **For Developers**: README.md → CHANGELOG.md → SECURITY.md
-- **For Training**: QUICKSTART.md (Training section) → DEPLOYMENT_GUIDE.md (Training details)
+### Input Validation (3 Layers)
 
-## License
+1. **File Upload**: Extension, size (<100MB), format validation
+2. **Data Loading**: Column presence, text column validation
+3. **Processing**: Length, type, encoding checks
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+### Deployment Security
 
-## Skip Reason Feature
+**For Portable .exe Users:**
+- Run in isolated directory (no admin needed)
+- Logs stored locally in `logs/`
+- Config in `config.yaml` (review before sharing)
+
+**For Developers:**
+- Use virtual environment: `python -m venv venv`
+- Dependency scanning: `pip-audit`
+- Update packages: `pip install --upgrade -r requirements.txt`
+
+**For Organizations:**
+- Review `config.yaml` before deployment
+- Configure logging levels appropriately
+- Restrict file upload directories
+- Use model versioning to rollback if needed
+
+### Vulnerability Reporting
+
+Report security issues to: **volodymyrdunaiev@gmail.com**
+
+---
+
+## 📚 Documentation
+
+**Quick Links:**
+- **Version History**: See [CHANGELOG.md](CHANGELOG.md)
+- **Issues/Support**: [GitHub Issues](https://github.com/Volodymyr-Dunaiev/employee_comment_analyzer/issues)
+
+---
+
+---
+
+## 🛠️ Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| **"Model not found"** | Run training first: `Train_Model.exe --data data\train.xlsx` |
+| **"Out of memory"** | Reduce batch_size to 4 in config.yaml |
+| **"CUDA not available"** | Set `device: "cpu"` in config.yaml |
+| **"Invalid file format"** | Ensure Excel has 'text' column with comments |
+| **"No labels column"** | For training: add 'labels' column with categories |
+| **Low F1 score (<0.5)** | Need more training data (100+ samples recommended) |
+| **Slow processing** | Enable GPU: set `device: "cuda"` (NVIDIA) or `device: "mps"` (Apple Silicon) |
+| **Import errors** | Reinstall: `pip install -e .` |
+| **Permission denied** | Run app from user directory, not system folders |
+| **Excel won't open** | Check file isn't already open in Excel |
+| **Model predictions wrong** | Retrain with more diverse examples or adjust threshold |
+| **Portable .exe won't start** | Extract ZIP fully, disable antivirus briefly, check Windows Defender |
+
+### Common Training Issues
+
+- **"Validation split error"**: Need at least 5 samples per category
+- **"NaN in loss"**: Lower learning rate (1e-5) or reduce batch size
+- **"Overfitting"**: Reduce epochs or add more training data
+- **"Unbalanced categories"**: Aim for similar sample counts per category
+
+### Performance Tips
+
+- **GPU acceleration**: Set `device: "cuda"` for 10-50× speedup
+- **Batch size**: Larger = faster but needs more memory
+- **Confidence threshold**: Lower (0.2) = more predictions, Higher (0.5) = fewer but more confident
+- **Model choice**: xlm-roberta-base best for Ukrainian
+
+---
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
+---
 
 The `skip_reason` column provides detailed categorization of why texts are skipped during classification.
 
