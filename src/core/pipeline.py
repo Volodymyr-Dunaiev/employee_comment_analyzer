@@ -38,7 +38,7 @@ def run_inference(
     text_column: str,
     categories: List[str],
     progress_callback: Optional[Callable[[int, int], None]] = None
-) -> None:
+) -> dict:
     """Run the complete inference pipeline on an input file.
     
     This is the main entry point for batch classification. It:
@@ -54,18 +54,26 @@ def run_inference(
         categories: List of possible category labels
         progress_callback: Optional function(current, total) for progress updates
     
+    Returns:
+        Dictionary with summary statistics:
+        - total_comments: Total number of rows processed
+        - total_labels: Total number of labels assigned
+        - category_counts: Dict of category -> count
+        - skipped_count: Number of skipped/empty rows
+    
     Raises:
         PipelineError: If any step fails (file not found, invalid format, etc.)
         ConfigError: If configuration is invalid
     
     Example:
-        >>> run_inference(
+        >>> summary = run_inference(
         ...     "input.xlsx",
         ...     "output.xlsx", 
         ...     "comment",
         ...     ["Category1", "Category2"],
         ...     lambda curr, tot: print(f"{curr}/{tot}")
         ... )
+        >>> print(f"Processed {summary['total_comments']} comments")
     """
     
     logger.info("Starting inference pipeline...")
@@ -74,6 +82,12 @@ def run_inference(
         config = load_config()
         chunk_size = config['data']['chunk_size']
         classifier = _get_classifier()  # Lazy-load classifier
+        
+        # Initialize summary statistics
+        category_counts = {cat: 0 for cat in categories}
+        total_labels = 0
+        total_comments = 0
+        skipped_count = 0
         
         # Process in chunks to handle large files
         all_results = []
@@ -84,12 +98,34 @@ def run_inference(
             df_chunk["Predicted_Categories"] = classifier.predict_comments(
                 df_chunk, text_column, categories, progress_callback
             )
+            
+            # Collect statistics from this chunk
+            total_comments += len(df_chunk)
+            for pred_categories in df_chunk["Predicted_Categories"]:
+                if pred_categories and pred_categories != "none":
+                    # Split comma-separated categories
+                    cats = [c.strip() for c in pred_categories.split(',') if c.strip()]
+                    total_labels += len(cats)
+                    for cat in cats:
+                        if cat in category_counts:
+                            category_counts[cat] += 1
+                else:
+                    skipped_count += 1
+            
             all_results.append(df_chunk)
             
         # Combine results and save
         final_df = pd.concat(all_results, ignore_index=True)
         write_excel(final_df, output_path)
         logger.info("Inference pipeline completed successfully")
+        
+        # Return summary
+        return {
+            'total_comments': total_comments,
+            'total_labels': total_labels,
+            'category_counts': category_counts,
+            'skipped_count': skipped_count
+        }
         
     except Exception as e:
         error_msg = f"Pipeline failed: {str(e)}"

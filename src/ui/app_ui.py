@@ -3,6 +3,7 @@ import os
 from io import BytesIO
 from typing import Optional, BinaryIO, List
 from pathlib import Path
+from datetime import datetime
 import tempfile
 import streamlit as st
 from src.core.pipeline import run_inference
@@ -435,39 +436,96 @@ def show_inference_tab(config):
         input_file = st.file_uploader("Upload Excel file", type=["xlsx", "xls"])
 
         if input_file and validate_file(input_file):
-            # In-memory file handling
-            output_file = BytesIO()
-
-            # Progress tracking
-            progress_text = st.empty()
-            progress_bar = st.progress(0)
-
-            def update_progress(current: int, total: int) -> None:
-                percent = int((current / total) * 100)
-                progress_bar.progress(percent)
-                progress_text.text(f"Processing... {percent}%")
+            # Output directory selection
+            if 'single_output_dir' not in st.session_state:
+                st.session_state.single_output_dir = str(Path.home() / "Downloads")
+            
+            output_dir = st.text_input(
+                "📂 Output Directory (optional)",
+                value=st.session_state.single_output_dir,
+                help="Directory to save results. Leave as Downloads or specify custom path. File will be named: classified_FileName_YYYYMMDD_HHMMSS.xlsx"
+            )
+            st.session_state.single_output_dir = output_dir
+            
+            # Show directory status
+            try:
+                output_path = Path(output_dir)
+                if output_path.exists():
+                    st.caption(f"✅ Will save to: {output_dir}")
+                else:
+                    st.caption(f"📁 Will create and save to: {output_dir}")
+            except Exception:
+                st.caption("⚠️ Invalid directory path - using Downloads folder")
+                output_dir = str(Path.home() / "Downloads")
 
             # Process button with error handling
             if st.button("Run Classification", type="primary"):
                 try:
                     with st.spinner("Processing..."):
-                        run_inference(
-                            input_file,
-                            output_file,
-                            text_column,
-                            categories,
-                            update_progress
-                        )
+                        # Create output directory if needed
+                        output_path_obj = Path(output_dir)
+                        output_path_obj.mkdir(parents=True, exist_ok=True)
+                        
+                        # Generate timestamped output filename
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        input_filename = Path(input_file.name).stem
+                        output_filename = f"classified_{input_filename}_{timestamp}.xlsx"
+                        output_file_path = output_path_obj / output_filename
+                        
+                        # Progress tracking
+                        progress_text = st.empty()
+                        progress_bar = st.progress(0)
 
-                    st.success("Classification completed successfully!")
+                        def update_progress(current: int, total: int) -> None:
+                            percent = int((current / total) * 100)
+                            progress_bar.progress(percent)
+                            progress_text.text(f"Processing... {percent}%")
+                        
+                        # Process with file output
+                        with open(output_file_path, 'wb') as output_file:
+                            summary = run_inference(
+                                input_file,
+                                output_file,
+                                text_column,
+                                categories,
+                                update_progress
+                            )
+                        
+                        # Clear progress indicators
+                        progress_bar.empty()
+                        progress_text.empty()
 
-                    # Offer download
-                    st.download_button(
-                        "Download Results",
-                        data=output_file.getvalue(),
-                        file_name="classified_comments.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    st.success(f"✅ Classification completed successfully!")
+                    st.success(f"📁 Results saved to: **{output_file_path}**")
+                    st.info(f"File: `{output_filename}`")
+                    
+                    # Display summary statistics
+                    st.subheader("📊 Processing Summary")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Comments", summary['total_comments'])
+                    with col2:
+                        st.metric("Total Labels", summary['total_labels'])
+                    with col3:
+                        avg_labels = summary['total_labels'] / max(summary['total_comments'] - summary['skipped_count'], 1)
+                        st.metric("Avg Labels/Comment", f"{avg_labels:.1f}")
+                    with col4:
+                        st.metric("Skipped/Empty", summary['skipped_count'])
+                    
+                    # Show top categories
+                    if summary['category_counts']:
+                        st.write("**Most Common Categories:**")
+                        sorted_cats = sorted(
+                            summary['category_counts'].items(),
+                            key=lambda x: x[1],
+                            reverse=True
+                        )[:5]  # Top 5
+                        
+                        for i, (cat, count) in enumerate(sorted_cats, 1):
+                            if count > 0:
+                                pct = (count / summary['total_comments'] * 100) if summary['total_comments'] > 0 else 0
+                                st.write(f"{i}. **{cat}**: {count} ({pct:.1f}%)")
 
                 except PipelineError as e:
                     display_error(f"Processing error: {str(e)}")
@@ -477,9 +535,11 @@ def show_inference_tab(config):
         
         # Initialize session state for batch settings
         if 'batch_combine_results' not in st.session_state:
-            st.session_state.batch_combine_results = True
+            st.session_state.batch_combine_results = False  # Default to unchecked
         if 'batch_output_prefix' not in st.session_state:
             st.session_state.batch_output_prefix = "classified_"
+        if 'batch_output_dir' not in st.session_state:
+            st.session_state.batch_output_dir = str(Path.home() / "Downloads")
         
         # Batch upload
         uploaded_files = st.file_uploader(
@@ -501,77 +561,41 @@ def show_inference_tab(config):
                     st.write(f"{i}. {file.name} ({size_mb:.2f} MB)")
             
             # Batch processing options
+            st.subheader("Processing Options")
+            
             col1, col2 = st.columns(2)
             with col1:
-                # Check if using GPU - must use max_workers=1 for CUDA
-                device = config['model'].get('device', 'cpu')
-                is_gpu = device.lower() in ['cuda', 'gpu']
-                
-                # Initialize session state for max_workers if not set
-                if 'batch_max_workers' not in st.session_state:
-                    st.session_state.batch_max_workers = 1
-                if 'batch_use_multiprocessing' not in st.session_state:
-                    st.session_state.batch_use_multiprocessing = False
-                
-                if is_gpu:
-                    max_workers = 1
-                    use_multiprocessing = False
-                    st.info("🔒 **GPU/CUDA Mode**")
-                    st.caption("Concurrent processing disabled for thread-safety. PyTorch models cannot safely run concurrent inference on GPU.")
-                    # Display disabled input to show the value
-                    st.number_input(
-                        "Concurrent files",
-                        min_value=1,
-                        max_value=1,
-                        value=1,
-                        disabled=True,
-                        help="GPU mode requires single-threaded processing"
-                    )
-                else:
-                    # Multiprocessing toggle
-                    use_multiprocessing = st.checkbox(
-                        "Use multiprocessing (true parallelism)",
-                        value=st.session_state.batch_use_multiprocessing,
-                        help="Creates separate processes with isolated models for true parallel processing. Higher memory usage but better CPU utilization."
-                    )
-                    st.session_state.batch_use_multiprocessing = use_multiprocessing
-                    
-                    if use_multiprocessing:
-                        st.caption("✨ **Multiprocessing Mode** — True parallel processing with separate model instances")
-                        max_workers = st.number_input(
-                            "Concurrent processes",
-                            min_value=1,
-                            max_value=8,
-                            value=st.session_state.batch_max_workers,
-                            key='max_workers_input',
-                            help="Number of processes to run in parallel. Each process loads its own model instance."
-                        )
-                    else:
-                        st.caption("ℹ️ **Threading Mode (Recommended for small batches)** — PyTorch inference stays single-threaded (only I/O is parallelized)")
-                        max_workers = st.number_input(
-                            "Concurrent files",
-                            min_value=1,
-                            max_value=5,
-                            value=st.session_state.batch_max_workers,
-                            key='max_workers_input',
-                            help="Number of files to process simultaneously. Values >1 only speed up file reading/writing, not classification."
-                        )
-                    # Update session state with user choice
-                    st.session_state.batch_max_workers = max_workers
-            with col2:
-                combine_results = st.checkbox(
-                    "Create combined output",
-                    value=st.session_state.batch_combine_results,
-                    help="Generate a single file with all results combined"
+                output_dir = st.text_input(
+                    "📂 Output Directory",
+                    value=st.session_state.batch_output_dir,
+                    help="Directory where results will be saved. Files are named: classified_OriginalName_YYYYMMDD_HHMMSS.xlsx"
                 )
-                st.session_state.batch_combine_results = combine_results
+                st.session_state.batch_output_dir = output_dir
                 
+                # Show current directory info
+                try:
+                    output_path = Path(output_dir)
+                    if output_path.exists():
+                        st.caption(f"✅ Directory exists: {output_dir}")
+                    else:
+                        st.caption(f"📁 Will be created: {output_dir}")
+                except Exception:
+                    st.caption("⚠️ Invalid directory path")
+                    
+            with col2:
                 output_prefix = st.text_input(
                     "Output filename prefix",
                     value=st.session_state.batch_output_prefix,
-                    help="Prefix to add to output filenames"
+                    help="Prefix for output filenames (timestamp is added automatically)"
                 )
                 st.session_state.batch_output_prefix = output_prefix
+                
+                combine_results = st.checkbox(
+                    "Create combined output file",
+                    value=st.session_state.batch_combine_results,
+                    help="Generate a single file with all results combined (optional)"
+                )
+                st.session_state.batch_combine_results = combine_results
             
             # Action buttons
             col_btn1, col_btn2 = st.columns(2)
@@ -596,11 +620,11 @@ def show_inference_tab(config):
                             file_paths.append(file_path)
                         
                         # Initialize batch processor (no classifier needed for dry-run)
+                        # Initialize batch processor
                         config = load_config()
                         classifier = CommentClassifier(config)
                         processor = BatchProcessor(
                             classifier,
-                            max_workers=1,
                             text_column=text_column
                         )
                         
@@ -669,9 +693,7 @@ def show_inference_tab(config):
                         classifier = CommentClassifier(config)
                         processor = BatchProcessor(
                             classifier,
-                            max_workers=max_workers,
-                            text_column=text_column,
-                            use_multiprocessing=use_multiprocessing
+                            text_column=text_column
                         )
                         
                         # Validate files and cache loaded data
@@ -686,6 +708,12 @@ def show_inference_tab(config):
                         if not valid_files:
                             st.error("No valid files to process!")
                         else:
+                            # Determine output directory
+                            output_path_obj = Path(output_dir)
+                            if not output_path_obj.exists():
+                                output_path_obj.mkdir(parents=True, exist_ok=True)
+                                st.info(f"📁 Created output directory: {output_dir}")
+                            
                             # Setup progress tracking
                             progress_bar = st.progress(0)
                             status_text = st.empty()
@@ -699,7 +727,7 @@ def show_inference_tab(config):
                             # Process files with progress tracking
                             result = processor.process_files(
                                 valid_files,
-                                output_dir=temp_path / "results",
+                                output_dir=output_path_obj,
                                 output_prefix=output_prefix,
                                 combine_results=combine_results,
                                 validated_data=cached_data,
@@ -759,35 +787,23 @@ def show_inference_tab(config):
                                     for filename, error in result.failed_files:
                                         st.write(f"**{filename}:** {error}")
                             
-                            # Provide downloads
-                            st.subheader("📥 Download Results")
+                            # Show output location
+                            st.subheader("📥 Results Saved")
+                            st.success(f"✅ Results saved to: **{output_dir}**")
                             
-                            # Individual file downloads
                             if result.successful_files:
-                                st.write("**Individual Results:**")
+                                st.write("**Generated files:**")
                                 for filename in result.successful_files:
-                                    output_path = temp_path / "results" / f"classified_{filename}"
-                                    if output_path.exists():
-                                        with open(output_path, 'rb') as f:
-                                            st.download_button(
-                                                f"📄 {filename}",
-                                                data=f.read(),
-                                                file_name=f"classified_{filename}",
-                                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                                key=f"download_{filename}"
-                                            )
+                                    # Find the actual output file (with timestamp)
+                                    output_files = list(output_path_obj.glob(f"{output_prefix}*"))
+                                    for output_file in output_files:
+                                        if filename.replace('.xlsx', '').replace('.xls', '').replace('.csv', '') in output_file.stem:
+                                            st.write(f"📄 `{output_file.name}`")
+                                            break
                             
-                            # Combined output download
+                            # Combined output info
                             if combine_results and result.combined_output_path is not None:
-                                st.write("**Combined Output:**")
-                                with open(result.combined_output_path, 'rb') as f:
-                                    st.download_button(
-                                        "📦 Download All (Combined)",
-                                        data=f.read(),
-                                        file_name=result.combined_output_path.name,
-                                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                        key="download_combined"
-                                    )
+                                st.write(f"📦 Combined output: `{result.combined_output_path.name}`")
                 
                 except Exception as e:
                     display_error(f"Batch processing error: {str(e)}")

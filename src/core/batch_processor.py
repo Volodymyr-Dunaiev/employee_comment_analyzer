@@ -1,24 +1,19 @@
 """
-Batch file processing module for handling multiple files concurrently.
+Batch file processing module for handling multiple files sequentially.
 
 Supports:
 - Multiple Excel/CSV files
-- Parallel processing with configurable workers (threads or processes)
-- Progress tracking with callbacks
+- Sequential processing with progress tracking
 - Error handling per file
 - Consolidated results
-- Checkpoint/resume capability
+- Timestamped output filenames
 """
 
 import logging
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Union, Callable
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from typing import List, Dict, Optional, Tuple, Callable
 import pandas as pd
 from datetime import datetime
-import logging
-import threading
-import multiprocessing as mp
 
 from src.core.classifier import CommentClassifier
 from src.core.errors import PipelineError
@@ -126,179 +121,6 @@ class ExcelIO:
 logger = logging.getLogger(__name__)
 
 
-# Module-level worker function for multiprocessing
-def _process_file_worker(
-    file_path: Path,
-    output_dir: Optional[Path],
-    output_prefix: str,
-    classifier_config: dict,
-    text_column: str,
-    cached_df: Optional[pd.DataFrame] = None
-) -> Tuple[Path, pd.DataFrame, int, int]:
-    """
-    Worker function for multiprocessing that creates its own classifier instance.
-    
-    This function is defined at module level so it can be pickled for multiprocessing.
-    Each process will have its own classifier instance for true parallelism.
-    """
-    from src.core.classifier import CommentClassifier
-    
-    # Create classifier instance in this process
-    classifier = CommentClassifier(classifier_config)
-    
-    # Create a minimal processor instance for this worker
-    excel_io = ExcelIO()
-    
-    # Determine output path
-    if output_dir is None:
-        output_dir = file_path.parent
-    else:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
-    
-    output_filename = f"{output_prefix}{file_path.name}"
-    output_path = output_dir / output_filename
-    
-    # Check if file should be processed in chunks
-    use_chunking = (cached_df is None and excel_io.should_chunk(file_path))
-    
-    if use_chunking:
-        # Chunked processing for large CSV files
-        return _process_file_chunked_worker(
-            file_path, output_path, classifier, text_column, excel_io
-        )
-    else:
-        # Standard in-memory processing
-        return _process_file_inmemory_worker(
-            file_path, output_path, classifier, text_column, excel_io, cached_df
-        )
-
-
-def _process_file_inmemory_worker(
-    file_path: Path,
-    output_path: Path,
-    classifier: 'CommentClassifier',
-    text_column: str,
-    excel_io: ExcelIO,
-    cached_df: Optional[pd.DataFrame] = None
-) -> Tuple[Path, pd.DataFrame, int, int]:
-    """Process file entirely in memory (worker version)."""
-    # Use cached DataFrame if available, otherwise read file
-    if cached_df is not None:
-        df = cached_df.copy(deep=False)
-    else:
-        df = excel_io.read_file(file_path, text_column=text_column)
-    
-    comments_count = len(df)
-    
-    if comments_count == 0:
-        raise ClassificationError(f"No comments found in {file_path.name}")
-    
-    # Classify comments (no lock needed - separate process)
-    texts = df[text_column].tolist()
-    predictions = classifier.classify_batch(texts)
-    
-    # Extract metadata about skipped rows
-    metadata = predictions.pop('_metadata', {})
-    skipped_indices = metadata.get('skipped_indices', [])
-    skipped_count = len(skipped_indices)
-    
-    # Add predictions to dataframe
-    for category, probs in predictions.items():
-        df[category] = probs
-    
-    # Atomic write: write to temp file first, then rename
-    output_dir = output_path.parent
-    temp_output_path = output_dir / f".{output_path.name}.tmp"
-    
-    try:
-        excel_io.save_results(df, temp_output_path)
-        
-        if output_path.exists():
-            output_path.unlink()
-        temp_output_path.rename(output_path)
-        
-    except Exception as e:
-        if temp_output_path.exists():
-            temp_output_path.unlink()
-        raise
-    
-    return output_path, df, comments_count, skipped_count
-
-
-def _process_file_chunked_worker(
-    file_path: Path,
-    output_path: Path,
-    classifier: 'CommentClassifier',
-    text_column: str,
-    excel_io: ExcelIO
-) -> Tuple[Path, pd.DataFrame, int, int]:
-    """Process large CSV file in chunks (worker version)."""
-    logger.info(f"Processing {file_path.name} in chunks (file size > 50MB)")
-    
-    output_dir = output_path.parent
-    temp_output_path = output_dir / f".{output_path.name}.tmp"
-    
-    total_comments = 0
-    total_skipped = 0
-    all_chunks = []
-    
-    try:
-        for chunk_df, chunk_idx, chunk_start_row in excel_io.read_csv_chunks(
-            file_path, text_column=text_column
-        ):
-            chunk_size = len(chunk_df)
-            total_comments += chunk_size
-            
-            # Classify chunk (no lock needed - separate process)
-            texts = chunk_df[text_column].tolist()
-            predictions = classifier.classify_batch(texts)
-            
-            # Extract metadata
-            metadata = predictions.pop('_metadata', {})
-            skipped_indices = metadata.get('skipped_indices', [])
-            total_skipped += len(skipped_indices)
-            
-            # Add predictions to chunk
-            for category, probs in predictions.items():
-                chunk_df[category] = probs
-            
-            # Append chunk to output file
-            write_header = (chunk_idx == 0)
-            excel_io.append_to_csv(chunk_df, temp_output_path, write_header=write_header)
-            
-            if chunk_idx < 100:
-                all_chunks.append(chunk_df)
-            
-            logger.debug(
-                f"Processed chunk {chunk_idx + 1} of {file_path.name}: "
-                f"rows {chunk_start_row}-{chunk_start_row + chunk_size - 1}"
-            )
-        
-        # Atomic rename
-        if output_path.exists():
-            output_path.unlink()
-        temp_output_path.rename(output_path)
-        
-        # Combine chunks for return value
-        if all_chunks:
-            combined_df = pd.concat(all_chunks, ignore_index=True)
-        else:
-            combined_df = pd.read_csv(output_path)
-        
-        logger.info(
-            f"Chunked processing complete for {file_path.name}: "
-            f"{total_comments} rows, {total_skipped} skipped"
-        )
-        
-    except Exception as e:
-        if temp_output_path.exists():
-            temp_output_path.unlink()
-        raise
-    
-    return output_path, combined_df, total_comments, total_skipped
-
-
 class BatchProcessingResult:
     """Container for batch processing results."""
     
@@ -357,54 +179,28 @@ class BatchProcessingResult:
 
 
 class BatchProcessor:
-    """Process multiple files in batch mode.
+    """Process multiple files sequentially with progress tracking.
     
-    Supports both thread-based and process-based parallelism:
-    - Threads: Lower memory, but PyTorch serialization limits parallelism to I/O only
-    - Processes: True parallelism with separate model instances, but higher memory usage
+    Optimized for typical use case of 2-3 files with 5-10k rows each.
+    Sequential processing is simpler and sufficient for this scale.
     """
     
     def __init__(
         self,
         classifier: CommentClassifier,
-        max_workers: int = 1,
-        text_column: str = "text",
-        use_multiprocessing: bool = False
+        text_column: str = "text"
     ):
         """
         Initialize batch processor.
         
         Args:
             classifier: CommentClassifier instance for classification
-            max_workers: Maximum concurrent file processing (default: 1)
             text_column: Name of text column in input files
-            use_multiprocessing: If True, use ProcessPoolExecutor instead of ThreadPoolExecutor
-                                for true parallelism (default: False)
         """
         self.classifier = classifier
-        self.max_workers = max_workers
         self.text_column = text_column
-        self.use_multiprocessing = use_multiprocessing
         self.excel_io = ExcelIO()
-        self._model_lock = threading.Lock()  # Only used in thread mode
-        
-        if use_multiprocessing:
-            if max_workers > 1:
-                logger.info(
-                    f"Batch processor initialized with {max_workers} processes. "
-                    "Each process will load its own model instance."
-                )
-            else:
-                logger.info("Batch processor initialized with single-process mode")
-        else:
-            if max_workers > 1:
-                logger.warning(
-                    f"Batch processor initialized with {max_workers} threads. "
-                    "Note: PyTorch model inference is serialized due to thread-safety; "
-                    "only I/O operations benefit from concurrency."
-                )
-            else:
-                logger.info("Batch processor initialized with single-threaded processing")
+        logger.info("Batch processor initialized for sequential processing")
     
     def process_files(
         self,
@@ -416,7 +212,7 @@ class BatchProcessor:
         progress_callback: Optional[Callable[[str, int, int], None]] = None
     ) -> BatchProcessingResult:
         """
-        Process multiple files in batch.
+        Process multiple files sequentially.
         
         Args:
             file_paths: List of input file paths
@@ -432,83 +228,54 @@ class BatchProcessor:
         start_time = datetime.now()
         result = BatchProcessingResult()
         total_files = len(file_paths)
-        completed_files = 0
         
-        logger.info(f"Starting batch processing of {total_files} files")
+        logger.info(f"Starting sequential processing of {total_files} files")
         
-        # Choose executor based on configuration
-        executor_class = ProcessPoolExecutor if self.use_multiprocessing else ThreadPoolExecutor
-        
-        # Process files concurrently
-        with executor_class(max_workers=self.max_workers) as executor:
-            # Submit all tasks
-            if self.use_multiprocessing:
-                # For multiprocessing, pass classifier config to create new instances
-                future_to_file = {
-                    executor.submit(
-                        _process_file_worker,
-                        file_path,
-                        output_dir,
-                        output_prefix,
-                        self.classifier.config,
-                        self.text_column,
-                        validated_data.get(file_path) if validated_data else None
-                    ): file_path
-                    for file_path in file_paths
-                }
-            else:
-                # For threading, use instance method directly
-                future_to_file = {
-                    executor.submit(
-                        self._process_single_file,
-                        file_path,
-                        output_dir,
-                        output_prefix,
-                        validated_data.get(file_path) if validated_data else None
-                    ): file_path
-                    for file_path in file_paths
-                }
+        # Process files one by one
+        for idx, file_path in enumerate(file_paths, 1):
+            filename = file_path.name
             
-            # Collect results as they complete
-            for future in as_completed(future_to_file):
-                file_path = future_to_file[future]
-                filename = file_path.name
+            try:
+                # Process single file
+                cached_df = validated_data.get(file_path) if validated_data else None
+                output_path, df, comments_count, skipped_count = self._process_single_file(
+                    file_path,
+                    output_dir,
+                    output_prefix,
+                    cached_df
+                )
                 
-                try:
-                    output_path, df, comments_count, skipped_count = future.result()
-                    result.add_success(filename, df, comments_count, skipped_count)
-                    completed_files += 1
+                result.add_success(filename, df, comments_count, skipped_count)
+                
+                # Invoke progress callback
+                if progress_callback:
+                    try:
+                        progress_callback(filename, idx, total_files)
+                    except Exception as e:
+                        logger.warning(f"Progress callback failed: {e}")
+                
+                # Log per-file skip count
+                if skipped_count > 0:
+                    pct = (skipped_count / comments_count * 100) if comments_count > 0 else 0
+                    logger.warning(
+                        f"✓ Processed {filename}: {comments_count} total rows, "
+                        f"{comments_count - skipped_count} classified, {skipped_count} skipped ({pct:.1f}%)"
+                    )
+                else:
+                    logger.info(f"✓ Processed {filename}: {comments_count} comments")
                     
-                    # Invoke progress callback
-                    if progress_callback:
-                        try:
-                            progress_callback(filename, completed_files, total_files)
-                        except Exception as e:
-                            logger.warning(f"Progress callback failed: {e}")
-                    
-                    # Log per-file skip count for operator visibility
-                    if skipped_count > 0:
-                        pct = (skipped_count / comments_count * 100) if comments_count > 0 else 0
-                        logger.warning(
-                            f"✓ Processed {filename}: {comments_count} total rows, "
-                            f"{comments_count - skipped_count} classified, {skipped_count} skipped ({pct:.1f}%)"
-                        )
-                    else:
-                        logger.info(f"✓ Processed {filename}: {comments_count} comments")
-                    
-                except Exception as e:
-                    error_msg = str(e)
-                    result.add_failure(filename, error_msg)
-                    completed_files += 1
-                    
-                    # Invoke progress callback even on failure
-                    if progress_callback:
-                        try:
-                            progress_callback(filename, completed_files, total_files)
-                        except Exception as e2:
-                            logger.warning(f"Progress callback failed: {e2}")
-                    
-                    logger.error(f"✗ Failed {filename}: {error_msg}")
+            except Exception as e:
+                error_msg = str(e)
+                result.add_failure(filename, error_msg)
+                
+                # Invoke progress callback even on failure
+                if progress_callback:
+                    try:
+                        progress_callback(filename, idx, total_files)
+                    except Exception as e2:
+                        logger.warning(f"Progress callback failed: {e2}")
+                
+                logger.error(f"✗ Failed {filename}: {error_msg}")
         
         # Calculate processing time
         result.processing_time = (datetime.now() - start_time).total_seconds()
@@ -532,6 +299,7 @@ class BatchProcessor:
     ) -> Tuple[Path, pd.DataFrame, int, int]:
         """
         Process a single file with automatic chunking for large CSVs.
+        Generates timestamped output filename.
         
         Args:
             file_path: Path to input file
@@ -542,14 +310,17 @@ class BatchProcessor:
         Returns:
             Tuple of (output_path, dataframe, comments_count, skipped_count)
         """
-        # Determine output path first
+        # Determine output path with timestamp
         if output_dir is None:
             output_dir = file_path.parent
         else:
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
         
-        output_filename = f"{output_prefix}{file_path.name}"
+        # Generate timestamped filename: classified_OriginalName_YYYYMMDD_HHMMSS.xlsx
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_stem = file_path.stem  # filename without extension
+        output_filename = f"{output_prefix}{file_stem}_{timestamp}.xlsx"
         output_path = output_dir / output_filename
         
         # Check if file should be processed in chunks (large CSVs only)
@@ -580,12 +351,9 @@ class BatchProcessor:
         if comments_count == 0:
             raise ClassificationError(f"No comments found in {file_path.name}")
         
-        # Classify comments with thread-safe access to model
+        # Classify comments
         texts = df[self.text_column].tolist()
-        
-        # Acquire lock before calling model (PyTorch is not thread-safe)
-        with self._model_lock:
-            predictions = self.classifier.classify_batch(texts)
+        predictions = self.classifier.classify_batch(texts)
         
         # Extract metadata about skipped rows
         metadata = predictions.pop('_metadata', {})
@@ -640,11 +408,9 @@ class BatchProcessor:
                 chunk_size = len(chunk_df)
                 total_comments += chunk_size
                 
-                # Classify chunk with thread-safe access to model
+                # Classify chunk
                 texts = chunk_df[self.text_column].tolist()
-                
-                with self._model_lock:
-                    predictions = self.classifier.classify_batch(texts)
+                predictions = self.classifier.classify_batch(texts)
                 
                 # Extract metadata
                 metadata = predictions.pop('_metadata', {})

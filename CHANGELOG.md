@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] - 2025-11-09
+
+### Added
+
+- **Output Directory Selection**: Users can now choose where to save results
+
+  - Single file mode: Text input for custom output directory (default: Downloads)
+  - Batch mode: Configurable output directory with validation
+  - Automatic directory creation if path doesn't exist
+  - Visual feedback for directory status (exists/will be created)
+
+- **Results Summary Display**: Post-processing statistics shown in UI
+
+  - Total comments processed
+  - Total labels assigned
+  - Average labels per comment
+  - Skipped/empty comment count
+  - Top 5 most common categories with percentages
+
+- **Timestamped Output Filenames**: Automatic timestamp for all outputs
+  - Format: `classified_OriginalName_YYYYMMDD_HHMMSS.xlsx`
+  - Prevents overwriting previous results
+  - Easy chronological sorting
+
+### Changed
+
+- **Simplified Architecture**: Removed multiprocessing complexity
+
+  - `BatchProcessor` now uses sequential processing (removed ThreadPoolExecutor/ProcessPoolExecutor)
+  - Optimized for typical use case: 2-3 files with 5-10k rows each
+  - Removed ~200 lines of concurrent processing code
+  - No more `max_workers` or `use_multiprocessing` parameters
+  - Cleaner, more maintainable codebase
+
+- **Streamlined Batch UI**: Removed confusing multiprocessing controls
+
+  - Removed "Concurrent files" slider
+  - Removed "Use multiprocessing" checkbox
+  - Removed GPU/CUDA mode warnings about concurrency
+  - "Create combined output" now defaults to unchecked
+  - Simpler, more intuitive interface
+
+- **Enhanced Pipeline**: `run_inference()` now returns summary dict
+  - Returns processing statistics instead of None
+  - Summary includes category counts, labels, skipped rows
+  - Enables UI to show meaningful results summary
+
+### Removed
+
+- **Multiprocessing Infrastructure**: Simplified for target use case
+  - Removed module-level worker functions (`_process_file_worker`, etc.)
+  - Removed thread-safety locks (no longer needed)
+  - Removed ProcessPoolExecutor/ThreadPoolExecutor dependencies
+  - Tests updated to reflect sequential processing
+
+### Fixed
+
+- Output files no longer saved to temp directories
+- Users have full control over output location
+- No more download buttons needed - files saved directly
+
 ## [2.4.0] - 2025-11-09
 
 ### Added

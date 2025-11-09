@@ -1,19 +1,19 @@
 # Ukrainian Comments Classifier
 
-![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
 ![Performance](https://img.shields.io/badge/startup-87%25_faster-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 A machine learning application that classifies Ukrainian text comments into multiple predefined categories.
 
-**What's New in v2.4.0:**
+**What's New in v2.5.0:**
 
-- ✅ **Realistic-scale testing** - 10k/20k row test datasets (actual use case)
-- ✅ **Progress tracking** - Real-time progress bars for long-running operations
-- ✅ **Memory profiling** - Built-in memory usage tracking
-- ✅ **Simplified testing** - No mock models, skip if real model unavailable
-- ✅ **Consolidated docs** - Reduced from 5 files to 2 (README + CHANGELOG)
+- ✅ **Simplified architecture** - Sequential processing optimized for 2-3 file workflows
+- ✅ **Output directory selection** - Choose where to save results (single & batch mode)
+- ✅ **Timestamped filenames** - Automatic: `classified_FileName_YYYYMMDD_HHMMSS.xlsx`
+- ✅ **Results summary** - View processing stats: total comments, labels, top categories
+- ✅ **Reduced complexity** - Removed multiprocessing overhead (~200 lines)
 
 ## 📥 Download & Installation
 
@@ -148,7 +148,7 @@ The app opens in your browser at `http://localhost:8501`
 - **Multi-label classification** of Ukrainian text comments
 - **Training interface** for fine-tuning models with your own data
 - **User-friendly Streamlit interface** with separate tabs for classification and training
-- **Batch file processing** - Upload and classify multiple files at once with parallel processing
+- **Batch file processing** - Upload and classify multiple files sequentially with progress tracking
 - **Real-time progress tracking** during classification and training
 - **Configurable categories** (currently 13 Ukrainian workplace categories)
 - **Comprehensive error handling** and logging
@@ -423,30 +423,33 @@ Use this tab to classify comments with an existing trained model.
 
 1. Select "Single File" processing mode
 2. Upload an Excel file containing comments
-3. Click "Run Classification"
-4. Monitor progress
-5. Download the results
+3. (Optional) Specify output directory (default: Downloads)
+4. Click "Run Classification"
+5. Monitor progress and view processing summary
+6. Results automatically saved with timestamped filename
 
 #### Batch Processing Mode
 
-Process multiple files at once for improved efficiency:
+Process multiple files sequentially with progress tracking:
 
 1. Select "Batch Processing" mode
 2. Upload multiple Excel/CSV files simultaneously
 3. Configure options:
-   - **Concurrent files**: Number of files to process in parallel (1-5)
-   - **Create combined output**: Merge all results into one file
+   - **Output Directory**: Choose where to save results (default: Downloads)
+   - **Output Prefix**: Customize filename prefix (default: "classified\_")
+   - **Create combined output**: Optionally merge all results into one file
 4. Click "Process Batch"
 5. View processing summary (success rate, total comments, time)
-6. Download individual results or combined output
+6. Results saved to your chosen directory with timestamped filenames
 
 **Batch Processing Benefits:**
 
-- Process 3-5 files concurrently (configurable)
+- Sequential processing optimized for typical 2-3 file workflows
+- Timestamped output files: `classified_OriginalName_YYYYMMDD_HHMMSS.xlsx`
 - Automatic file validation before processing
 - Detailed error reporting per file
-- Combined output option with source file tracking
-- Significant time savings for large datasets
+- Optional combined output with source file tracking
+- Choose your own output directory
 
 ### Tab 2: Training
 
@@ -455,11 +458,13 @@ Use this tab to train a new model or refine an existing one:
 #### Training Modes
 
 **🆕 Train from Base Model (New Model)**
+
 - Start fresh with pre-trained model (xlm-roberta-base)
 - Best for: First-time training, new categories, poor existing model
 - Parameters: 3-5 epochs, learning rate 2e-5
 
 **🔄 Continue Training Existing Model (Refinement)**
+
 - Load and improve your existing trained model
 - Best for: Adding new samples, fixing mistakes, expanding categories
 - Parameters: 1-2 epochs, learning rate 1e-5 (auto-adjusted by UI)
@@ -468,15 +473,18 @@ Use this tab to train a new model or refine an existing one:
 #### Steps
 
 1. **Upload Training Data**: Excel/CSV file with labeled comments
+
    - Required columns: `text` (comments) and `labels` (categories)
    - Labels format: comma-separated or list format
    - Minimum 10 samples required
 
 2. **Select Training Mode**:
+
    - **Train from base model**: Choose xlm-roberta-base, bert-base-multilingual-cased, or xlm-roberta-large
    - **Continue training**: Enter path to existing model (default: `./model/ukr_multilabel`)
 
 3. **Configure Training Parameters** (auto-adjusted for refinement):
+
    - Text/Labels column names
    - Number of epochs (3-5 for new, 1-2 for refinement)
    - Batch size (4-32, based on RAM)
@@ -485,6 +493,7 @@ Use this tab to train a new model or refine an existing one:
    - Output directory for trained model
 
 4. **Start Training**:
+
    - Click "Start Training"
    - Monitor progress bar and status
    - View training results (loss, F1 scores, precision, recall)

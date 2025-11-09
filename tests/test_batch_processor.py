@@ -300,16 +300,15 @@ class TestBatchProcessorUnit:
 
 @pytest.mark.integration
 class TestBatchProcessorRealistic:
-    """Integration tests with realistic data scales (10k-20k rows)."""
+    """Integration tests with realistic data scales (10k-20k rows).
+    
+    Tests sequential processing optimized for 2-3 files with 5-10k rows each.
+    """
     
     def test_process_10k_rows_2_files(self, realistic_files_10k, temp_dir):
         """Test processing 10k rows across 2 files (actual use case)."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(
-            classifier,
-            max_workers=2,
-            use_multiprocessing=True  # True parallelism
-        )
+        processor = BatchProcessor(classifier)
         
         start_time = time.time()
         result = processor.process_files(
@@ -346,7 +345,7 @@ class TestBatchProcessorRealistic:
     def test_process_20k_rows_single_file(self, realistic_file_20k, temp_dir):
         """Test processing 20k rows in single file (upper bound use case)."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=1)
+        processor = BatchProcessor(classifier)
         
         start_time = time.time()
         result = processor.process_files(
@@ -375,7 +374,7 @@ class TestBatchProcessorRealistic:
     def test_memory_profiling_10k_rows(self, realistic_files_10k, temp_dir):
         """Test memory usage during 10k row processing."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=2)
+        processor = BatchProcessor(classifier)
         
         # Start memory tracking
         tracemalloc.start()
@@ -404,7 +403,7 @@ class TestBatchProcessorRealistic:
     def test_skip_reason_distribution_realistic(self, realistic_files_10k, temp_dir):
         """Test skip reason distribution with realistic data."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=1)
+        processor = BatchProcessor(classifier)
         
         result = processor.process_files(
             realistic_files_10k[:1],  # Just first file (5k rows)
@@ -434,7 +433,7 @@ class TestBatchProcessorSmallScale:
     def test_process_single_file(self, sample_files, temp_dir):
         """Test processing a single small file."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=1)
+        processor = BatchProcessor(classifier)
         
         result = processor.process_files(
             [sample_files[0]],
@@ -450,7 +449,7 @@ class TestBatchProcessorSmallScale:
     def test_output_files_created(self, sample_files, temp_dir):
         """Test that output files are created correctly."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=1)
+        processor = BatchProcessor(classifier)
         output_dir = temp_dir / "output"
         
         result = processor.process_files(
@@ -475,7 +474,7 @@ class TestBatchProcessorSmallScale:
     def test_combined_output(self, sample_files, temp_dir):
         """Test combined output file creation."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=2)
+        processor = BatchProcessor(classifier)
         
         result = processor.process_files(
             sample_files[:2],
@@ -558,7 +557,7 @@ class TestBatchProcessorEdgeCases:
     def test_process_with_empty_file(self, empty_file, temp_dir):
         """Test processing empty file."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=1)
+        processor = BatchProcessor(classifier)
         
         result = processor.process_files(
             [empty_file],
@@ -572,7 +571,7 @@ class TestBatchProcessorEdgeCases:
     def test_process_mixed_success_failure(self, sample_files, empty_file, temp_dir):
         """Test processing with both successful and failed files."""
         classifier = get_real_classifier()
-        processor = BatchProcessor(classifier, max_workers=2)
+        processor = BatchProcessor(classifier)
         
         all_files = sample_files + [empty_file]
         result = processor.process_files(all_files, output_dir=temp_dir)
